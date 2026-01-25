@@ -3,123 +3,63 @@ import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="FL Boutique - Gestão", layout="wide")
 
-# --- FUNÇÃO DE LOGIN (SEGURANÇA SIMPLES) ---
+# --- FUNÇÃO DE LOGIN ---
 def check_password():
-    """Retorna True se o usuário tiver a senha correta."""
-
     def password_entered():
-        """Verifica se a senha inserida bate com a do secrets."""
         if st.session_state["password"] == st.secrets["passwords"]["acesso_loja"]:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Não armazena a senha
+            del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    # Se já validou, retorna True
     if st.session_state.get("password_correct", False):
         return True
 
-    # Se não validou, mostra o input
-    st.markdown(
-        """
-        <style>
-        /* Estilo específico para a tela de login */
-        .stTextInput > label {color: #5C3A3B !important;}
-        </style>
-        """, unsafe_allow_html=True
-    )
-    
+    st.markdown("<style>.stTextInput > label {color: #5C3A3B !important;}</style>", unsafe_allow_html=True)
     st.title("🔒 Acesso Restrito - FL Boutique")
-    st.text_input(
-        "Digite a senha de acesso:", type="password", on_change=password_entered, key="password"
-    )
+    st.text_input("Digite a senha de acesso:", type="password", on_change=password_entered, key="password")
     
     if "password_correct" in st.session_state:
-        st.error("😕 Senha incorreta. Tente novamente.")
-
+        st.error("😕 Senha incorreta.")
     return False
 
-# --- VERIFICAÇÃO DE LOGIN ---
 if not check_password():
-    st.stop()  # O App para aqui se não estiver logado
+    st.stop()
 
-# ========================================================
-# DAQUI PRA BAIXO É O APP QUE SÓ APARECE APÓS O LOGIN
-# ========================================================
-
-# --- ESTILIZAÇÃO CSS (CORRIGINDO MODO ESCURO) ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
-    /* Força o Fundo Rosê */
-    .stApp {
-        background-color: #FDF2F4;
-    }
-    
-    /* CORREÇÃO DO MODO ESCURO: Força cor do texto para Marrom/Preto em TUDO */
-    html, body, p, div, span, label, h1, h2, h3, h4, h5, h6, .stMarkdown, .stText {
-        color: #5C3A3B !important; /* Marrom elegante */
-    }
-    
-    /* Inputs e Selectbox - Texto dentro deles */
-    .stTextInput input, .stNumberInput input, .stSelectbox div, .stMultiSelect div {
-        color: #333333 !important; /* Preto para facilitar leitura no input */
-    }
-
-    /* Botões */
-    .stButton>button {
-        background-color: #E69496; 
-        color: white !important; /* Texto do botão sempre branco */
-        border-radius: 10px;
-        border: none;
-        font-weight: bold;
-    }
-    .stButton>button:hover {
-        background-color: #D4787A;
-        color: white !important;
-    }
-
-    /* Ajuste do Menu Lateral */
-    [data-testid="stSidebar"] {
-        background-color: #FFF0F5;
-    }
-    [data-testid="stSidebar"] * {
-        color: #5C3A3B !important;
-    }
+    .stApp { background-color: #FDF2F4; }
+    html, body, p, div, span, label, h1, h2, h3, h4, h5, h6, .stMarkdown, .stText, td, th { color: #5C3A3B !important; }
+    .stTextInput input, .stNumberInput input, .stSelectbox div, .stMultiSelect div { color: #333333 !important; }
+    .stButton>button { background-color: #E69496; color: white !important; border-radius: 10px; border: none; font-weight: bold; }
+    .stButton>button:hover { background-color: #D4787A; color: white !important; }
+    [data-testid="stSidebar"] { background-color: #FFF0F5; }
+    [data-testid="stSidebar"] * { color: #5C3A3B !important; }
     </style>
     """, unsafe_allow_html=True)
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
 @st.cache_resource
 def get_connection():
-    scope = [
-        "https://spreadsheets.google.com/feeds",
-        "https://www.googleapis.com/auth/drive"
-    ]
-    
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     try:
-        # PRIORIDADE 1: JSON Local
         if os.path.exists("credentials.json"):
             creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-        
-        # PRIORIDADE 2: Secrets do Streamlit
         elif "gcp_service_account" in st.secrets:
             creds_dict = st.secrets["gcp_service_account"]
             creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-        
         else:
-            st.error("🚨 ERRO CRÍTICO: Nenhuma credencial encontrada.")
+            st.error("🚨 Sem credenciais.")
             return None
-
         client = gspread.authorize(creds)
-        spreadsheet = client.open("FL Boutique Sistema") 
-        return spreadsheet
-
+        return client.open("FL Boutique Sistema")
     except Exception as e:
         st.error(f"🚨 Falha na Conexão: {e}")
         return None
@@ -132,9 +72,6 @@ def load_data(sheet_name):
             worksheet = conn.worksheet(sheet_name)
             data = worksheet.get_all_records()
             return pd.DataFrame(data)
-        except gspread.WorksheetNotFound:
-            st.error(f"Aba '{sheet_name}' não encontrada.")
-            return pd.DataFrame()
         except Exception as e:
             st.error(f"Erro ao ler '{sheet_name}': {e}")
             return pd.DataFrame()
@@ -146,9 +83,9 @@ def append_data(sheet_name, row_data):
         try:
             worksheet = conn.worksheet(sheet_name)
             worksheet.append_row(row_data)
-            st.cache_data.clear() 
+            st.cache_data.clear()
         except Exception as e:
-            st.error(f"Erro ao salvar dados: {e}")
+            st.error(f"Erro ao salvar: {e}")
 
 def update_product_status(product_id, new_status):
     conn = get_connection()
@@ -158,195 +95,325 @@ def update_product_status(product_id, new_status):
             cell = ws.find(product_id)
             if cell:
                 headers = ws.row_values(1)
-                if "status" in headers:
-                    col_index = headers.index("status") + 1
-                    ws.update_cell(cell.row, col_index, new_status)
-                    st.cache_data.clear()
+                col_index = headers.index("status") + 1
+                ws.update_cell(cell.row, col_index, new_status)
+                st.cache_data.clear()
+        except Exception:
+            pass
+
+def update_finance_status(finance_id, new_status):
+    conn = get_connection()
+    if conn:
+        try:
+            ws = conn.worksheet("Financeiro")
+            cell = ws.find(finance_id)
+            if cell:
+                headers = ws.row_values(1)
+                col_index = headers.index("status_pagamento") + 1
+                ws.update_cell(cell.row, col_index, new_status)
+                st.cache_data.clear()
+                return True
         except Exception as e:
-            st.error(f"Erro ao atualizar status: {e}")
+            st.error(f"Erro ao atualizar financeiro: {e}")
+    return False
 
-# --- INTERFACE PRINCIPAL ---
+# --- LÓGICA DE PARCELAMENTO ---
+def gerar_lancamentos_financeiros(total, parcelas, forma_pag, cliente_nome, origem):
+    """Gera linhas para o financeiro considerando parcelamento."""
+    lancamentos = []
+    data_hoje = datetime.now()
+    valor_parcela = round(total / parcelas, 2)
+    
+    # Ajuste de centavos na última parcela
+    diferenca = round(total - (valor_parcela * parcelas), 2)
+    
+    for i in range(parcelas):
+        # Calcula data de vencimento (30 dias para cada parcela a partir de hoje)
+        # Se for "Dinheiro" ou "Pix" à vista (1x), vencimento é hoje.
+        if parcelas == 1:
+            data_venc = data_hoje
+        else:
+            dias_a_somar = 30 * (i + 1)
+            data_venc = data_hoje + timedelta(days=dias_a_somar)
+            
+        valor_final = valor_parcela
+        if i == parcelas - 1: # Última parcela pega a diferença
+            valor_final += diferenca
+            
+        status = "Pago" if (forma_pag in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
+        
+        desc = f"{origem} - {cliente_nome} ({i+1}/{parcelas})"
+        
+        # Colunas: id, data_lancamento, data_vencimento, tipo, descricao, valor, forma, status
+        row = [
+            str(uuid.uuid4()),
+            data_hoje.strftime("%Y-%m-%d"),
+            data_venc.strftime("%Y-%m-%d"),
+            "Venda",
+            desc,
+            f"{valor_final:.2f}".replace('.', ','), # Salva como string formatada PT-BR para visualização
+            forma_pag,
+            status
+        ]
+        lancamentos.append(row)
+    return lancamentos
 
-st.title("👗 FL Boutique Moda Cristã")
-st.markdown("**Sistema de Gestão - Fran & Loamí**")
+# --- INTERFACE ---
 
-# Botão de Logout (Sair)
+# 1. LOGO DA LOJA
+col_logo, col_titulo = st.columns([1, 4])
+with col_logo:
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=100)
+    else:
+        st.write("👜") # Icone caso não tenha imagem
+with col_titulo:
+    st.title("FL Boutique")
+    st.caption("Sistema de Gestão Integrado")
+
+# 2. MENU
 if st.sidebar.button("Sair / Logout"):
     st.session_state["password_correct"] = False
     st.rerun()
 
-conn_test = get_connection()
+menu = st.sidebar.radio("Navegação", ["Dashboard", "Venda Direta", "Controle de Malas", "Produtos", "Clientes", "Financeiro"])
 
-if conn_test:
-    menu = st.sidebar.radio("Navegação", ["Dashboard", "Venda Direta", "Controle de Malas", "Produtos", "Clientes", "Financeiro"])
+if menu == "Dashboard":
+    st.header("Visão Geral")
+    df_fin = load_data("Financeiro")
+    df_prod = load_data("Produtos")
+    
+    if not df_fin.empty and not df_prod.empty:
+        try:
+            # Limpeza de dados para cálculo (troca vírgula por ponto)
+            df_prod['preco_custo'] = df_prod['preco_custo'].astype(str).str.replace(',', '.').astype(float)
+            df_fin['valor'] = df_fin['valor'].astype(str).str.replace(',', '.').astype(float)
+            
+            total_estoque = df_prod[df_prod['status'] == 'Disponível']['preco_custo'].sum()
+            receita_pendente = df_fin[(df_fin['tipo'] == 'Venda') & (df_fin['status_pagamento'] == 'Pendente')]['valor'].sum()
+            caixa_real = df_fin[(df_fin['status_pagamento'] == 'Pago')]['valor'].sum()
+            
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Estoque (Custo)", f"R$ {total_estoque:,.2f}")
+            c2.metric("A Receber", f"R$ {receita_pendente:,.2f}")
+            c3.metric("Em Caixa", f"R$ {caixa_real:,.2f}")
+        except Exception as e:
+            st.warning(f"Dados insuficientes ou erro de formato: {e}")
 
-    if menu == "Dashboard":
-        st.header("Visão Geral")
-        df_fin = load_data("Financeiro")
-        df_prod = load_data("Produtos")
-        
-        if not df_fin.empty and not df_prod.empty:
-            try:
-                # Garante que os valores sejam numéricos
-                df_prod['preco_custo'] = pd.to_numeric(df_prod['preco_custo'], errors='coerce').fillna(0)
-                df_fin['valor'] = pd.to_numeric(df_fin['valor'], errors='coerce').fillna(0)
-
-                total_estoque = df_prod[df_prod['status'] == 'Disponível']['preco_custo'].sum()
-                receita_pendente = df_fin[(df_fin['tipo'] == 'Venda') & (df_fin['status_pagamento'] == 'Pendente')]['valor'].sum()
-                caixa_atual = df_fin[(df_fin['tipo'] == 'Venda') & (df_fin['status_pagamento'] == 'Pago')]['valor'].sum()
+elif menu == "Venda Direta":
+    st.header("🛒 Nova Venda")
+    df_cli = load_data("Clientes")
+    df_prod = load_data("Produtos")
+    
+    if not df_cli.empty and not df_prod.empty:
+        with st.form("venda_form"):
+            # Ocultando IDs na seleção
+            cli_opts = df_cli['nome'].unique()
+            cliente = st.selectbox("Cliente", cli_opts)
+            
+            # Produtos disponíveis
+            disp = df_prod[df_prod['status'] == 'Disponível']
+            # Cria dicionário para mapear Label -> ID
+            prod_map = {f"{row['nome']} - {row['tamanho']} (R$ {row['preco_venda']})": row['id'] for i, row in disp.iterrows()}
+            
+            selecionados = st.multiselect("Produtos", options=list(prod_map.keys()))
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                forma = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão de Crédito", "Cartão de Débito"])
+            with c2:
+                parcelas = st.number_input("Parcelas (1 = À vista)", min_value=1, max_value=12, value=1)
                 
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Valor em Estoque (Custo)", f"R$ {total_estoque:,.2f}")
-                col2.metric("A Receber (Fiado/Pendente)", f"R$ {receita_pendente:,.2f}")
-                col3.metric("Caixa Real (Pago)", f"R$ {caixa_atual:,.2f}")
-            except Exception as e:
-                st.warning(f"Erro ao calcular métricas: {e}")
-        else:
-            st.info("Cadastre produtos e vendas para ver as métricas.")
+            submit = st.form_submit_button("✅ Finalizar Venda")
+            
+            if submit and selecionados:
+                # Calcula Total
+                total_venda = 0
+                ids_selecionados = []
+                for label in selecionados:
+                    pid = prod_map[label]
+                    ids_selecionados.append(pid)
+                    # Pega preço
+                    preco_str = str(disp[disp['id'] == pid]['preco_venda'].values[0]).replace(',', '.')
+                    total_venda += float(preco_str)
+                
+                # 1. Atualiza Produtos
+                for pid in ids_selecionados:
+                    update_product_status(pid, "Vendido")
+                
+                # 2. Gera Financeiro (com parcelas)
+                lancamentos = gerar_lancamentos_financeiros(total_venda, parcelas, forma, cliente, "Venda Direta")
+                for lanc in lancamentos:
+                    append_data("Financeiro", lanc)
+                
+                st.success(f"Venda de R$ {total_venda:.2f} registrada com sucesso!")
+                st.balloons()
+                # st.rerun() # Opcional: recarregar a página
 
-    elif menu == "Venda Direta":
-        st.header("🛒 Registrar Venda Presencial")
-        df_clientes = load_data("Clientes")
-        df_produtos = load_data("Produtos")
-        
-        if not df_clientes.empty and not df_produtos.empty:
-            with st.form("form_venda_direta"):
-                cliente = st.selectbox("Cliente", df_clientes['nome'].unique())
-                prods_disponiveis = df_produtos[df_produtos['status'] == 'Disponível']
-                
-                if prods_disponiveis.empty:
-                    st.warning("Sem estoque disponível.")
-                    submit = st.form_submit_button("Vender", disabled=True)
-                else:
-                    opcoes_prod = prods_disponiveis.apply(lambda x: f"{x['id']} | {x['nome']} - {x['tamanho']} - R${x['preco_venda']}", axis=1)
-                    produtos_selecionados = st.multiselect("Selecione as peças", options=opcoes_prod)
-                    ja_pagou = st.checkbox("Pagamento já realizado?", value=True)
-                    submit = st.form_submit_button("Finalizar Venda")
-                
-                if submit and produtos_selecionados:
-                    total_venda = 0
-                    for p_str in produtos_selecionados:
-                        p_id = p_str.split(" | ")[0]
-                        preco = df_produtos[df_produtos['id'] == p_id]['preco_venda'].values[0]
-                        total_venda += float(str(preco).replace(',','.'))
-                        update_product_status(p_id, "Vendido")
+elif menu == "Controle de Malas":
+    st.header("👜 Malas Delivery")
+    t1, t2 = st.tabs(["Nova Mala", "Retorno/Baixa"])
+    df_cli = load_data("Clientes")
+    df_prod = load_data("Produtos")
+    
+    with t1:
+        with st.form("nova_mala"):
+            st.subheader("Enviar Mala")
+            cli_opts = df_cli['nome'].unique()
+            cliente = st.selectbox("Cliente", cli_opts)
+            
+            disp = df_prod[df_prod['status'] == 'Disponível']
+            prod_map = {f"{row['nome']} - {row['tamanho']}": row['id'] for i, row in disp.iterrows()}
+            sel_mala = st.multiselect("Produtos", list(prod_map.keys()))
+            
+            if st.form_submit_button("🚀 Enviar Mala"):
+                if sel_mala:
+                    ids = [prod_map[k] for k in sel_mala]
+                    ids_str = ",".join(ids)
+                    cid = df_cli[df_cli['nome'] == cliente]['id'].values[0]
                     
-                    status_pag = "Pago" if ja_pagou else "Pendente"
-                    novo_fin = [str(uuid.uuid4()), datetime.now().strftime("%Y-%m-%d"), "Venda", f"Venda Direta para {cliente}", total_venda, status_pag]
-                    append_data("Financeiro", novo_fin)
-                    st.success(f"Venda de R$ {total_venda} registrada!")
-                    st.rerun()
-        else:
-            st.warning("Cadastre Clientes e Produtos primeiro.")
-
-    elif menu == "Controle de Malas":
-        st.header("👜 Delivery de Malas")
-        tab1, tab2 = st.tabs(["Nova Mala", "Retorno de Mala"])
-        df_clientes = load_data("Clientes")
-        df_produtos = load_data("Produtos")
-        
-        with tab1:
-            st.subheader("Montar Mala")
-            if df_clientes.empty or df_produtos.empty:
-                 st.warning("Faltam cadastros.")
+                    row = [str(uuid.uuid4()), cid, cliente, datetime.now().strftime("%Y-%m-%d"), ids_str, "Aberta"]
+                    append_data("Malas", row)
+                    for i in ids: update_product_status(i, "Em Mala")
+                    st.success("Mala enviada com sucesso!")
+    
+    with t2:
+        st.subheader("Processar Retorno")
+        df_malas = load_data("Malas")
+        if not df_malas.empty and 'status' in df_malas.columns:
+            abertas = df_malas[df_malas['status'] == 'Aberta']
+            if abertas.empty:
+                st.info("Nenhuma mala aberta.")
             else:
-                with st.form("nova_mala"):
-                    cliente_mala = st.selectbox("Cliente", df_clientes['nome'].unique())
-                    prods_disp = df_produtos[df_produtos['status'] == 'Disponível']
-                    opcoes_mala = prods_disp.apply(lambda x: f"{x['id']} | {x['nome']} - {x['tamanho']}", axis=1)
-                    itens_mala = st.multiselect("Peças para a mala", options=opcoes_mala)
-                    enviar = st.form_submit_button("Registrar Mala")
+                # Selectbox amigável sem ID visível
+                mala_map = {f"{row['nome_cliente']} (Enviada: {row['data_envio']})": row['id'] for i, row in abertas.iterrows()}
+                mala_label = st.selectbox("Selecione a Mala", list(mala_map.keys()))
+                mala_id = mala_map[mala_label]
+                
+                dados_mala = abertas[abertas['id'] == mala_id].iloc[0]
+                lista_ids = str(dados_mala['lista_ids_produtos']).split(",")
+                
+                st.divider()
+                st.write(f"**Cliente:** {dados_mala['nome_cliente']}")
+                
+                with st.form("baixa_mala"):
+                    st.write("Marque o que a cliente **DEVOLVEU** (Não comprou):")
+                    devolvidos = {}
                     
-                    if enviar and itens_mala:
-                        ids_mala = [item.split(" | ")[0] for item in itens_mala]
-                        ids_string = ",".join(ids_mala)
-                        id_cliente = df_clientes[df_clientes['nome'] == cliente_mala]['id'].values[0]
+                    # Recupera produtos da mala
+                    for pid in lista_ids:
+                        p_info = df_prod[df_prod['id'] == pid]
+                        if not p_info.empty:
+                            lbl = f"{p_info['nome'].values[0]} - {p_info['tamanho'].values[0]} (R$ {p_info['preco_venda'].values[0]})"
+                            # Checkbox marcado = devolveu
+                            devolvidos[pid] = st.checkbox(f"DEVOLVEU: {lbl}", value=True, key=pid)
+                    
+                    st.divider()
+                    st.write("Dados para Pagamento (dos itens vendidos):")
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        forma = st.selectbox("Forma Pagamento", ["Pix", "Dinheiro", "Cartão Crédito", "Cartão Débito"])
+                    with c2:
+                        parcelas = st.number_input("Parcelas", 1, 12, 1)
                         
-                        nova_mala_row = [str(uuid.uuid4()), id_cliente, cliente_mala, datetime.now().strftime("%Y-%m-%d"), ids_string, "Aberta"]
-                        append_data("Malas", nova_mala_row)
-                        for pid in ids_mala: update_product_status(pid, "Em Mala")
-                        st.success(f"Mala para {cliente_mala} criada!")
+                    if st.form_submit_button("✅ Processar Retorno"):
+                        total_venda = 0
+                        # 1. Atualiza Estoque
+                        conn = get_connection()
+                        ws_malas = conn.worksheet("Malas")
+                        
+                        items_vendidos = False
+                        for pid, devolveu in devolvidos.items():
+                            if devolveu:
+                                update_product_status(pid, "Disponível")
+                            else:
+                                update_product_status(pid, "Vendido")
+                                price = str(df_prod[df_prod['id'] == pid]['preco_venda'].values[0]).replace(',', '.')
+                                total_venda += float(price)
+                                items_vendidos = True
+                        
+                        # 2. Gera Financeiro
+                        if total_venda > 0:
+                            lancs = gerar_lancamentos_financeiros(total_venda, parcelas, forma, dados_mala['nome_cliente'], "Mala Delivery")
+                            for l in lancs: append_data("Financeiro", l)
+                            st.success(f"Venda de R$ {total_venda:.2f} gerada!")
+                        else:
+                            st.info("Nenhuma peça vendida nesta mala.")
+
+                        # 3. Fecha Mala
+                        cell = ws_malas.find(mala_id)
+                        headers = ws_malas.row_values(1)
+                        ws_malas.update_cell(cell.row, headers.index("status")+1, "Finalizada")
+                        
+                        st.success("Mala baixada com sucesso!")
                         st.rerun()
 
-        with tab2:
-            st.subheader("Retorno")
-            df_malas = load_data("Malas")
-            if not df_malas.empty and 'status' in df_malas.columns:
-                malas_abertas = df_malas[df_malas['status'] == 'Aberta']
-                if malas_abertas.empty:
-                    st.info("Nenhuma mala aberta.")
-                else:
-                    mala_id_str = st.selectbox("Selecione a Mala", malas_abertas['id'].astype(str) + " - " + malas_abertas['nome_cliente'])
-                    id_mala_real = mala_id_str.split(" - ")[0]
-                    dados = malas_abertas[malas_abertas['id'] == id_mala_real].iloc[0]
-                    lista_ids = str(dados['lista_ids_produtos']).split(",")
-                    
-                    st.write(f"Cliente: **{dados['nome_cliente']}**")
-                    st.warning("⚠️ Marque o que **DEVOLVEU** (Peças não vendidas).")
-                    
-                    with st.form("baixa"):
-                        retornos = {}
-                        for pid in lista_ids:
-                            p_info = df_produtos[df_produtos['id'] == pid]
-                            if not p_info.empty:
-                                label = f"{p_info['nome'].values[0]} (R$ {p_info['preco_venda'].values[0]})"
-                                retornos[pid] = st.checkbox(f"DEVOLVEU: {label}", value=True, key=pid)
-                        
-                        if st.form_submit_button("Processar Mala"):
-                            venda_total = 0
-                            conn = get_connection()
-                            ws_malas = conn.worksheet("Malas")
-                            
-                            for pid, devolveu in retornos.items():
-                                if devolveu:
-                                    update_product_status(pid, "Disponível")
-                                else:
-                                    update_product_status(pid, "Vendido")
-                                    price = df_produtos[df_produtos['id'] == pid]['preco_venda'].values[0]
-                                    venda_total += float(str(price).replace(',','.'))
-                            
-                            if venda_total > 0:
-                                novo_fin = [str(uuid.uuid4()), datetime.now().strftime("%Y-%m-%d"), "Venda", f"Mala - {dados['nome_cliente']}", venda_total, "Pendente"]
-                                append_data("Financeiro", novo_fin)
-                                st.success(f"Venda de R$ {venda_total} gerada!")
-                            
-                            cell = ws_malas.find(id_mala_real)
-                            headers = ws_malas.row_values(1)
-                            ws_malas.update_cell(cell.row, headers.index("status")+1, "Finalizada")
-                            st.success("Mala finalizada!")
-                            st.rerun()
-            else: st.info("Sem malas registradas.")
+elif menu == "Financeiro":
+    st.header("💰 Fluxo de Caixa")
+    df = load_data("Financeiro")
+    
+    tab_vis, tab_baixa = st.tabs(["Extrato", "Receber Pagamentos"])
+    
+    with tab_vis:
+        # Mostra tabela sem coluna ID
+        if not df.empty:
+            st.dataframe(df.drop(columns=['id'], errors='ignore'), use_container_width=True)
+        else:
+            st.info("Sem lançamentos.")
+            
+    with tab_baixa:
+        st.subheader("Confirmar Recebimento")
+        if not df.empty:
+            # Filtra apenas pendentes
+            pendentes = df[df['status_pagamento'] == 'Pendente']
+            
+            if pendentes.empty:
+                st.success("Tudo pago! Nenhuma pendência.")
+            else:
+                # Cria labels amigáveis
+                # Ex: "Maria - 1/3 - R$ 50,00 - Venc: 2026-02-25"
+                p_map = {}
+                for i, row in pendentes.iterrows():
+                    lbl = f"{row['descricao']} | R$ {row['valor']} | Venc: {row['data_vencimento']} | {row['forma_pagamento']}"
+                    p_map[lbl] = row['id']
+                
+                selecionado_lbl = st.selectbox("Selecione o pagamento para dar baixa:", list(p_map.keys()))
+                
+                if st.button("✅ Confirmar Recebimento"):
+                    id_pag = p_map[selecionado_lbl]
+                    if update_finance_status(id_pag, "Pago"):
+                        st.success("Pagamento confirmado!")
+                        st.rerun()
 
-    elif menu == "Produtos":
-        st.header("Gerenciar Produtos")
-        with st.expander("Novo Produto"):
-            with st.form("add_prod"):
-                nome = st.text_input("Nome")
-                tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","XG","Único"])
-                custo = st.number_input("Custo", min_value=0.0)
-                venda = st.number_input("Venda", min_value=0.0)
-                if st.form_submit_button("Salvar"):
-                    append_data("Produtos", [str(uuid.uuid4()), nome, tam, custo, venda, "Disponível"])
-                    st.success("Salvo!")
-                    st.rerun()
-        st.dataframe(load_data("Produtos"))
+elif menu == "Produtos":
+    st.header("👗 Produtos")
+    with st.expander("Cadastrar Novo"):
+        with st.form("new_prod"):
+            nome = st.text_input("Nome")
+            tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"])
+            custo = st.number_input("Custo", 0.0)
+            venda = st.number_input("Venda", 0.0)
+            if st.form_submit_button("Salvar"):
+                append_data("Produtos", [str(uuid.uuid4()), nome, tam, custo, venda, "Disponível"])
+                st.success("Produto Cadastrado!")
+                st.rerun()
+    
+    df = load_data("Produtos")
+    if not df.empty:
+        st.dataframe(df.drop(columns=['id'], errors='ignore'))
 
-    elif menu == "Clientes":
-        st.header("Gerenciar Clientes")
-        with st.expander("Novo Cliente"):
-            with st.form("add_cli"):
-                nome = st.text_input("Nome")
-                whats = st.text_input("WhatsApp")
-                end = st.text_input("Endereço")
-                if st.form_submit_button("Salvar"):
-                    append_data("Clientes", [str(uuid.uuid4()), nome, whats, end])
-                    st.success("Salvo!")
-                    st.rerun()
-        st.dataframe(load_data("Clientes"))
-
-    elif menu == "Financeiro":
-        st.header("Fluxo de Caixa")
-        st.dataframe(load_data("Financeiro"))
-
-else:
-    st.error("Erro de conexão com a planilha.")
+elif menu == "Clientes":
+    st.header("👥 Clientes")
+    with st.expander("Cadastrar Novo"):
+        with st.form("new_cli"):
+            nome = st.text_input("Nome")
+            whats = st.text_input("WhatsApp")
+            end = st.text_input("Endereço")
+            if st.form_submit_button("Salvar"):
+                append_data("Clientes", [str(uuid.uuid4()), nome, whats, end])
+                st.success("Cliente Salvo!")
+                st.rerun()
+    
+    df = load_data("Clientes")
+    if not df.empty:
+        st.dataframe(df.drop(columns=['id'], errors='ignore'))
