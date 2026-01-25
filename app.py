@@ -9,36 +9,29 @@ import os
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="FL Boutique - Gestão", layout="wide")
 
-# --- FUNÇÕES DE FORMATAÇÃO E CONVERSÃO (CORAÇÃO DO SISTEMA) ---
-def format_brl(value):
-    """Visualização: Transforma 1250.50 em R$ 1.250,50"""
+# --- FUNÇÕES DE UTILIDADE ---
+def converter_input_para_float(valor_str):
+    """
+    Transforma texto '85,90' ou 'R$ 85,90' em float 85.90
+    Evita o erro de milhar do padrão americano.
+    """
     try:
-        if value is None or value == "": return "R$ 0,00"
-        val_float = float(value)
-        return f"R$ {val_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        if not valor_str: return 0.0
+        # Remove R$, espaços e pontos de milhar (1.000 -> 1000)
+        limpo = str(valor_str).replace("R$", "").replace(" ", "").replace(".", "")
+        # Troca vírgula decimal por ponto (85,90 -> 85.90)
+        limpo = limpo.replace(",", ".")
+        return float(limpo)
     except:
-        return "R$ 0,00"
+        return 0.0
 
-def parse_brl(value_str):
-    """
-    Entrada: Recebe string "1.250,00" ou "85,90" ou float 85.9
-    Saída: Retorna float 1250.0 e 85.9
-    """
-    if isinstance(value_str, (int, float)):
-        return float(value_str)
-    
-    if not isinstance(value_str, str):
-        return 0.0
-        
+def format_brl(value):
+    """Formata float para visualização R$ 1.000,00"""
     try:
-        # Limpa R$ e espaços
-        clean_str = value_str.replace("R$", "").strip()
-        # Remove separador de milhar (.) e troca decimal (,) por ponto (.)
-        # Ex: "1.250,00" -> "1250,00" -> "1250.00"
-        clean_str = clean_str.replace(".", "").replace(",", ".")
-        return float(clean_str)
+        if value is None: return "R$ 0,00"
+        return f"R$ {float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except:
-        return 0.0
+        return value
 
 # --- FUNÇÃO DE LOGIN ---
 def check_password():
@@ -52,6 +45,7 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
+    # CSS Login
     st.markdown("""
         <style>
         .stTextInput > label {color: #5C3A3B !important;}
@@ -69,58 +63,39 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- ESTILIZAÇÃO CSS (VISUAL FINAL) ---
+# --- ESTILIZAÇÃO CSS (Reforço Visual) ---
 st.markdown("""
     <style>
-    /* 1. FUNDO GERAL */
+    /* Força Fundo Rosê e Textos Escuros */
     .stApp { background-color: #FDF2F4 !important; }
-
-    /* 2. TEXTOS */
-    h1, h2, h3, h4, h5, h6, p, span, label, li, .stMarkdown, .stText, th, td {
-        color: #5C3A3B !important;
-    }
-
-    /* 3. INPUTS E CAMPOS DE TEXTO (BRANCO) */
-    .stTextInput input, .stNumberInput input, .stDateInput input {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 1px solid #E69496 !important;
-    }
-
-    /* 4. SELECTBOX E DROPDOWN (BRANCO E PRETO) */
-    div[data-baseweb="select"] > div {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 1px solid #E69496 !important;
-    }
-    div[data-baseweb="select"] span { color: #000000 !important; }
-    div[data-baseweb="select"] svg { fill: #5C3A3B !important; }
+    h1, h2, h3, h4, h5, h6, p, span, label, li, .stMarkdown, .stText, th, td, .stMetricLabel { color: #5C3A3B !important; }
     
-    /* Menu Suspenso (Lista de Opções) */
-    ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
-    li[data-baseweb="option"] { color: #000000 !important; background-color: #FFFFFF !important; }
-    div[data-baseweb="popover"], div[data-baseweb="popover"] > div { background-color: #FFFFFF !important; }
-
-    /* 5. MENU LATERAL */
-    [data-testid="stSidebar"] { background-color: #FFF0F5 !important; }
-    [data-testid="stSidebar"] * { color: #5C3A3B !important; }
-
-    /* 6. BOTÕES */
-    .stButton > button {
-        background-color: #E69496 !important;
-        color: white !important;
-        border-radius: 10px;
-        border: none;
-        font-weight: bold;
+    /* Inputs Brancos (Correção iPhone) */
+    .stTextInput input, .stNumberInput input, .stDateInput input {
+        background-color: #FFFFFF !important; color: #000000 !important; border-color: #E69496 !important;
     }
-    .stButton > button:hover { background-color: #D4787A !important; color: white !important; }
+    
+    /* Selectbox Branco */
+    div[data-baseweb="select"] > div { background-color: #FFFFFF !important; color: #000000 !important; border-color: #E69496 !important; }
+    div[data-baseweb="select"] span { color: #000000 !important; }
+    
+    /* Popover/Lista Suspensa (Correção do Fundo Preto) */
+    div[data-baseweb="popover"], div[data-baseweb="popover"] > div, ul[data-baseweb="menu"] {
+        background-color: #FFFFFF !important;
+    }
+    li[data-baseweb="option"] { color: #000000 !important; background-color: #FFFFFF !important; }
+    li[data-baseweb="option"]:hover { background-color: #FFF0F5 !important; }
 
-    /* 7. TABELAS */
-    div[data-testid="stDataFrame"] { background-color: #FFFFFF !important; }
+    /* Botões */
+    .stButton > button { background-color: #E69496 !important; color: white !important; border: none; font-weight: bold; }
+    .stButton > button:hover { background-color: #D4787A !important; }
+    
+    /* Tabela */
+    [data-testid="stDataFrame"] { background-color: #FFFFFF !important; border-radius: 10px; padding: 5px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONEXÃO COM GOOGLE SHEETS ---
+# --- CONEXÃO GOOGLE SHEETS ---
 @st.cache_resource
 def get_connection():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -139,28 +114,22 @@ def get_connection():
         st.error(f"🚨 Falha na Conexão: {e}")
         return None
 
-# --- FUNÇÕES DE CRUD ---
+# --- FUNÇÕES CRUD ---
 def load_data(sheet_name):
     conn = get_connection()
     if conn:
         try:
-            worksheet = conn.worksheet(sheet_name)
-            data = worksheet.get_all_records()
-            return pd.DataFrame(data)
-        except Exception as e:
-            st.error(f"Erro ao ler '{sheet_name}': {e}")
-            return pd.DataFrame()
+            return pd.DataFrame(conn.worksheet(sheet_name).get_all_records())
+        except: return pd.DataFrame()
     return pd.DataFrame()
 
 def append_data(sheet_name, row_data):
     conn = get_connection()
     if conn:
         try:
-            worksheet = conn.worksheet(sheet_name)
-            worksheet.append_row(row_data)
+            conn.worksheet(sheet_name).append_row(row_data)
             st.cache_data.clear()
-        except Exception as e:
-            st.error(f"Erro ao salvar: {e}")
+        except Exception as e: st.error(f"Erro salvar: {e}")
 
 def update_data(sheet_name, id_value, updated_row_dict):
     conn = get_connection()
@@ -169,12 +138,10 @@ def update_data(sheet_name, id_value, updated_row_dict):
             ws = conn.worksheet(sheet_name)
             cell = ws.find(id_value)
             if cell:
-                for col_idx, val in updated_row_dict.items():
-                    ws.update_cell(cell.row, col_idx, val)
+                for col_idx, val in updated_row_dict.items(): ws.update_cell(cell.row, col_idx, val)
                 st.cache_data.clear()
                 return True
-        except Exception as e:
-            st.error(f"Erro ao atualizar: {e}")
+        except: pass
     return False
 
 def delete_data(sheet_name, id_value):
@@ -187,470 +154,334 @@ def delete_data(sheet_name, id_value):
                 ws.delete_rows(cell.row)
                 st.cache_data.clear()
                 return True
-        except Exception as e:
-            st.error(f"Erro ao excluir: {e}")
+        except: pass
     return False
 
-def update_product_status(product_id, new_status):
+def update_product_status(pid, status):
     conn = get_connection()
     if conn:
         try:
             ws = conn.worksheet("Produtos")
-            cell = ws.find(product_id)
+            cell = ws.find(pid)
             if cell:
-                headers = ws.row_values(1)
-                col_index = headers.index("status") + 1
-                ws.update_cell(cell.row, col_index, new_status)
+                ws.update_cell(cell.row, ws.row_values(1).index("status")+1, status)
                 st.cache_data.clear()
-        except Exception:
-            pass
+        except: pass
 
-def update_finance_status(finance_id, new_status):
+def update_finance_status(fid, status):
     conn = get_connection()
     if conn:
         try:
             ws = conn.worksheet("Financeiro")
-            cell = ws.find(finance_id)
+            cell = ws.find(fid)
             if cell:
-                headers = ws.row_values(1)
-                col_index = headers.index("status_pagamento") + 1
-                ws.update_cell(cell.row, col_index, new_status)
+                ws.update_cell(cell.row, ws.row_values(1).index("status_pagamento")+1, status)
                 st.cache_data.clear()
                 return True
-        except Exception as e:
-            st.error(f"Erro ao atualizar financeiro: {e}")
+        except: pass
     return False
 
-# --- LÓGICA DE PARCELAMENTO ---
-def gerar_lancamentos_financeiros(total, parcelas, forma_pag, cliente_nome, origem):
-    lancamentos = []
-    data_hoje = datetime.now()
-    valor_parcela = round(total / parcelas, 2)
-    diferenca = round(total - (valor_parcela * parcelas), 2)
+def gerar_lancamentos(total, parcelas, forma, cli, origem):
+    lancs = []
+    hoje = datetime.now()
+    val_parc = round(total/parcelas, 2)
+    dif = round(total - (val_parc * parcelas), 2)
     
     for i in range(parcelas):
-        if parcelas == 1:
-            data_venc = data_hoje
-        else:
-            dias_a_somar = 30 * (i + 1)
-            data_venc = data_hoje + timedelta(days=dias_a_somar)
-            
-        valor_final = valor_parcela
-        if i == parcelas - 1:
-            valor_final += diferenca
-            
-        status = "Pago" if (forma_pag in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
-        desc = f"{origem} - {cliente_nome} ({i+1}/{parcelas})"
+        venc = hoje if parcelas == 1 else hoje + timedelta(days=30*(i+1))
+        val = val_parc + dif if i == parcelas-1 else val_parc
+        status = "Pago" if (forma in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
         
-        # Salva o valor como string formatada PT-BR no banco para facilitar leitura humana
-        # O parse_brl cuida da conversão na volta
-        row = [
+        lancs.append([
             str(uuid.uuid4()),
-            data_hoje.strftime("%Y-%m-%d"),
-            data_venc.strftime("%Y-%m-%d"),
+            hoje.strftime("%Y-%m-%d"),
+            venc.strftime("%Y-%m-%d"),
             "Venda",
-            desc,
-            f"{valor_final:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."), # Salva como "1.250,50"
-            forma_pag,
+            f"{origem} - {cli} ({i+1}/{parcelas})",
+            f"{val:.2f}".replace('.', ','),
+            forma,
             status
-        ]
-        lancamentos.append(row)
-    return lancamentos
-
-# --- CALLBACKS PARA CÁLCULO DE DESCONTO ---
-def calc_final_from_desc():
-    try:
-        base = st.session_state.get('base_price', 0.0)
-        # Parseando o input de texto para float se necessário, mas aqui são number_inputs
-        desc = st.session_state.get('desc_input', 0.0)
-        st.session_state.final_value = round(base * (1 - desc / 100), 2)
-    except: pass
+        ])
+    return lancs
 
 # --- INTERFACE ---
-
-# Logo
-col_logo, col_titulo = st.columns([1, 4])
-with col_logo:
-    if os.path.exists("logo.png"):
-        st.image("logo.png", width=100)
-    else:
-        st.write("👜")
-with col_titulo:
+c1, c2 = st.columns([1, 4])
+with c1:
+    if os.path.exists("logo.png"): st.image("logo.png", width=80)
+    else: st.write("👜")
+with c2:
     st.title("FL Boutique")
-    st.caption("Sistema de Gestão Integrado")
+    st.caption("Sistema de Gestão")
 
-# Menu
-if st.sidebar.button("Sair / Logout"):
+if st.sidebar.button("Sair"):
     st.session_state["password_correct"] = False
     st.rerun()
 
-menu = st.sidebar.radio("Navegação", ["Dashboard", "Venda Direta", "Controle de Malas", "Produtos", "Clientes", "Financeiro"])
+menu = st.sidebar.radio("Menu", ["Dashboard", "Venda Direta", "Controle de Malas", "Produtos", "Clientes", "Financeiro"])
 
 if menu == "Dashboard":
     st.header("Visão Geral")
     df_fin = load_data("Financeiro")
     df_prod = load_data("Produtos")
-    
     if not df_fin.empty and not df_prod.empty:
         try:
-            # Aplica o parse_brl para garantir que 8.500,00 vire 8500.00 e 85,00 vire 85.00
-            df_prod['preco_custo'] = df_prod['preco_custo'].apply(parse_brl)
-            df_fin['valor'] = df_fin['valor'].apply(parse_brl)
+            # Tratamento robusto de números
+            custo_total = 0
+            for x in df_prod[df_prod['status']=='Disponível']['preco_custo']:
+                custo_total += converter_input_para_float(x)
+                
+            receber = 0
+            for idx, row in df_fin.iterrows():
+                if row['tipo'] == 'Venda' and row['status_pagamento'] == 'Pendente':
+                    receber += converter_input_para_float(row['valor'])
             
-            total_estoque = df_prod[df_prod['status'] == 'Disponível']['preco_custo'].sum()
-            receita_pendente = df_fin[(df_fin['tipo'] == 'Venda') & (df_fin['status_pagamento'] == 'Pendente')]['valor'].sum()
-            caixa_real = df_fin[(df_fin['status_pagamento'] == 'Pago')]['valor'].sum()
-            
+            caixa = 0
+            for idx, row in df_fin.iterrows():
+                if row['status_pagamento'] == 'Pago':
+                    caixa += converter_input_para_float(row['valor'])
+
             c1, c2, c3 = st.columns(3)
-            c1.metric("Estoque (Custo)", format_brl(total_estoque))
-            c2.metric("A Receber", format_brl(receita_pendente))
-            c3.metric("Em Caixa", format_brl(caixa_real))
-        except Exception as e:
-            st.warning(f"Erro ao calcular métricas: {e}")
-    else:
-        st.info("Sem dados suficientes.")
+            c1.metric("Estoque (Custo)", format_brl(custo_total))
+            c2.metric("A Receber", format_brl(receber))
+            c3.metric("Em Caixa", format_brl(caixa))
+        except Exception as e: st.warning(f"Erro cálculo: {e}")
 
 elif menu == "Venda Direta":
     st.header("🛒 Nova Venda")
     df_cli = load_data("Clientes")
     df_prod = load_data("Produtos")
-    
     if not df_cli.empty and not df_prod.empty:
-        cli_opts = df_cli['nome'].unique()
-        cliente = st.selectbox("Cliente", cli_opts)
+        cli = st.selectbox("Cliente", df_cli['nome'].unique())
+        disp = df_prod[df_prod['status']=='Disponível']
         
-        disp = df_prod[df_prod['status'] == 'Disponível']
-        # Mapeamento com Preço formatado
-        prod_map = {}
+        # Mapeamento seguro
+        p_map = {}
         for i, row in disp.iterrows():
-            p_val = parse_brl(row['preco_venda'])
-            label = f"{row['nome']} - {row['tamanho']} ({format_brl(p_val)})"
-            prod_map[label] = row['id']
+            val_float = converter_input_para_float(row['preco_venda'])
+            lbl = f"{row['nome']} - {row['tamanho']} ({format_brl(val_float)})"
+            p_map[lbl] = {'id': row['id'], 'val': val_float}
+            
+        sels = st.multiselect("Produtos", list(p_map.keys()))
         
-        selecionados = st.multiselect("Produtos", options=list(prod_map.keys()))
+        subtotal = sum([p_map[x]['val'] for x in sels])
         
-        # Subtotal
-        subtotal = 0.0
-        ids_selecionados = []
-        for label in selecionados:
-            pid = prod_map[label]
-            ids_selecionados.append(pid)
-            p_val = parse_brl(disp[disp['id'] == pid]['preco_venda'].values[0])
-            subtotal += p_val
-        
-        st.session_state.base_price = subtotal
-        
-        # Lógica de Inicialização dos valores de negociação
-        if 'last_subtotal' not in st.session_state or st.session_state.last_subtotal != subtotal:
-            st.session_state.final_input_str = f"{subtotal:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            st.session_state.desc_input = 0.0
-            st.session_state.last_subtotal = subtotal
-
         st.divider()
-        st.subheader("Negociação")
-        
-        col_resumo, col_desconto = st.columns(2)
-        with col_resumo:
-            st.markdown(f"#### Subtotal: {format_brl(subtotal)}")
-        
-        with col_desconto:
-            # Entrada de texto para permitir vírgula
-            val_final_txt = st.text_input("Valor Final (R$)", value=st.session_state.final_input_str)
+        c_val, c_desc = st.columns(2)
+        with c_val: st.markdown(f"#### Total Peças: {format_brl(subtotal)}")
+        with c_desc:
+            # Lógica simples de desconto
+            desc_val = st.number_input("Desconto (R$)", 0.0, step=1.0)
+            final = subtotal - desc_val
+            st.markdown(f"### Final: {format_brl(final)}")
             
-            # Converte o texto digitado para float para cálculos
-            try:
-                val_final_float = parse_brl(val_final_txt)
-            except:
-                val_final_float = 0.0
-            
-            # Calcula o desconto (informativo)
-            if subtotal > 0:
-                desconto_calc = ((subtotal - val_final_float) / subtotal) * 100
-            else:
-                desconto_calc = 0.0
-            
-            st.caption(f"Desconto aplicado: {desconto_calc:.2f}%")
-
         st.divider()
-        st.subheader("Pagamento")
         c1, c2 = st.columns(2)
-        with c1:
-            forma = st.selectbox("Forma de Pagamento", ["Pix", "Dinheiro", "Cartão de Crédito", "Cartão de Débito"])
-        with c2:
-            parcelas = st.number_input("Parcelas (1 = À vista)", min_value=1, max_value=12, value=1)
-            
-        if st.button("✅ Finalizar Venda"):
-            if selecionados and val_final_float > 0:
-                for pid in ids_selecionados: update_product_status(pid, "Vendido")
-                
-                lancamentos = gerar_lancamentos_financeiros(val_final_float, parcelas, forma, cliente, "Venda Direta")
-                for lanc in lancamentos: append_data("Financeiro", lanc)
-                
-                st.success(f"Venda de {format_brl(val_final_float)} registrada!")
+        with c1: forma = st.selectbox("Pagamento", ["Pix", "Dinheiro", "Cartão Crédito", "Cartão Débito"])
+        with c2: parc = st.number_input("Parcelas", 1, 12, 1)
+        
+        if st.button("Finalizar Venda"):
+            if final > 0:
+                for x in sels: update_product_status(p_map[x]['id'], "Vendido")
+                for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta"): append_data("Financeiro", l)
+                st.success("Venda Realizada!")
                 st.balloons()
-                
-                # Reset visual
-                st.session_state.final_input_str = "0,00"
-            else:
-                st.warning("Verifique os produtos e o valor final.")
-
-elif menu == "Controle de Malas":
-    st.header("👜 Malas Delivery")
-    t1, t2, t3 = st.tabs(["Nova Mala", "Retorno/Baixa", "Cancelar/Excluir"])
-    df_cli = load_data("Clientes")
-    df_prod = load_data("Produtos")
-    
-    with t1:
-        with st.form("nova_mala"):
-            st.subheader("Enviar Mala")
-            cli_opts = df_cli['nome'].unique() if not df_cli.empty else []
-            cliente = st.selectbox("Cliente", cli_opts)
-            disp = df_prod[df_prod['status'] == 'Disponível']
-            prod_map = {f"{row['nome']} - {row['tamanho']}": row['id'] for i, row in disp.iterrows()}
-            sel_mala = st.multiselect("Produtos", list(prod_map.keys()))
-            if st.form_submit_button("🚀 Enviar Mala"):
-                if sel_mala:
-                    ids = [prod_map[k] for k in sel_mala]
-                    ids_str = ",".join(ids)
-                    cid = df_cli[df_cli['nome'] == cliente]['id'].values[0]
-                    row = [str(uuid.uuid4()), cid, cliente, datetime.now().strftime("%Y-%m-%d"), ids_str, "Aberta"]
-                    append_data("Malas", row)
-                    for i in ids: update_product_status(i, "Em Mala")
-                    st.success("Mala enviada com sucesso!")
-    
-    with t2:
-        st.subheader("Processar Retorno")
-        df_malas = load_data("Malas")
-        if not df_malas.empty and 'status' in df_malas.columns:
-            abertas = df_malas[df_malas['status'] == 'Aberta']
-            if abertas.empty:
-                st.info("Nenhuma mala aberta.")
-            else:
-                mala_map = {f"{row['nome_cliente']} (Enviada: {row['data_envio']})": row['id'] for i, row in abertas.iterrows()}
-                mala_label = st.selectbox("Selecione a Mala", list(mala_map.keys()))
-                mala_id = mala_map[mala_label]
-                dados_mala = abertas[abertas['id'] == mala_id].iloc[0]
-                lista_ids = str(dados_mala['lista_ids_produtos']).split(",")
-                
-                st.divider()
-                st.write(f"**Cliente:** {dados_mala['nome_cliente']}")
-                with st.form("baixa_mala"):
-                    st.write("Marque o que a cliente **DEVOLVEU**:")
-                    devolvidos = {}
-                    for pid in lista_ids:
-                        p_info = df_prod[df_prod['id'] == pid]
-                        if not p_info.empty:
-                            p_val = parse_brl(p_info['preco_venda'].values[0])
-                            lbl = f"{p_info['nome'].values[0]} - {p_info['tamanho'].values[0]} ({format_brl(p_val)})"
-                            devolvidos[pid] = st.checkbox(f"DEVOLVEU: {lbl}", value=True, key=pid)
-                    
-                    st.divider()
-                    c1, c2 = st.columns(2)
-                    with c1: forma = st.selectbox("Forma Pagamento", ["Pix", "Dinheiro", "Cartão Crédito", "Cartão Débito"])
-                    with c2: parcelas = st.number_input("Parcelas", 1, 12, 1)
-                        
-                    if st.form_submit_button("✅ Processar Retorno"):
-                        total_venda = 0
-                        for pid, devolveu in devolvidos.items():
-                            if devolveu: update_product_status(pid, "Disponível")
-                            else:
-                                update_product_status(pid, "Vendido")
-                                price = parse_brl(df_prod[df_prod['id'] == pid]['preco_venda'].values[0])
-                                total_venda += price
-                        if total_venda > 0:
-                            lancs = gerar_lancamentos_financeiros(total_venda, parcelas, forma, dados_mala['nome_cliente'], "Mala Delivery")
-                            for l in lancs: append_data("Financeiro", l)
-                            st.success(f"Venda de {format_brl(total_venda)} gerada!")
-                        
-                        conn = get_connection()
-                        ws_malas = conn.worksheet("Malas")
-                        cell = ws_malas.find(mala_id)
-                        headers = ws_malas.row_values(1)
-                        ws_malas.update_cell(cell.row, headers.index("status")+1, "Finalizada")
-                        st.success("Mala finalizada!")
-                        st.rerun()
-
-    with t3:
-        st.subheader("🗑️ Excluir Registro de Mala")
-        df_malas = load_data("Malas")
-        if not df_malas.empty:
-            mala_map_del = {f"{row['nome_cliente']} - {row['status']} ({row['data_envio']})": row['id'] for i, row in df_malas.iterrows()}
-            sel_del_mala = st.selectbox("Selecione a Mala para Excluir", list(mala_map_del.keys()))
-            id_del_mala = mala_map_del[sel_del_mala]
-            
-            if st.button("Confirmar Exclusão da Mala"):
-                dados_del = df_malas[df_malas['id'] == id_del_mala].iloc[0]
-                if dados_del['status'] == 'Aberta':
-                    lista_ids_del = str(dados_del['lista_ids_produtos']).split(",")
-                    for pid in lista_ids_del:
-                        update_product_status(pid, "Disponível")
-                    st.info("Produtos devolvidos ao estoque.")
-                
-                delete_data("Malas", id_del_mala)
-                st.success("Registro de mala excluído!")
-                st.rerun()
-
-elif menu == "Financeiro":
-    st.header("💰 Fluxo de Caixa")
-    df = load_data("Financeiro")
-    
-    t_view, t_baixa, t_del = st.tabs(["Extrato", "Receber Pagamentos", "Excluir Lançamento"])
-    
-    with t_view:
-        if not df.empty:
-            df_display = df.drop(columns=['id'], errors='ignore').copy()
-            if 'valor' in df_display.columns:
-                 # Usa o parse_brl e depois formata
-                 df_display['valor'] = df_display['valor'].apply(lambda x: format_brl(parse_brl(x)))
-            st.dataframe(df_display, use_container_width=True)
-            
-    with t_baixa:
-        st.subheader("Confirmar Recebimento")
-        if not df.empty:
-            pendentes = df[df['status_pagamento'] == 'Pendente']
-            if pendentes.empty:
-                st.success("Tudo pago!")
-            else:
-                p_map = {}
-                for i, row in pendentes.iterrows():
-                    val_fmt = format_brl(parse_brl(row['valor']))
-                    lbl = f"{row['descricao']} | {val_fmt} | Venc: {row['data_vencimento']} | {row['forma_pagamento']}"
-                    p_map[lbl] = row['id']
-                
-                selecionado_lbl = st.selectbox("Selecione o pagamento:", list(p_map.keys()))
-                if st.button("✅ Confirmar Recebimento"):
-                    id_pag = p_map[selecionado_lbl]
-                    if update_finance_status(id_pag, "Pago"):
-                        st.success("Confirmado!")
-                        st.rerun()
-
-    with t_del:
-        st.subheader("🗑️ Excluir Venda/Lançamento")
-        if not df.empty:
-            fin_map = {}
-            for i, row in df.iterrows():
-                val_fmt = format_brl(parse_brl(row['valor']))
-                lbl = f"{row['data_lancamento']} | {row['descricao']} | {val_fmt} ({row['status_pagamento']})"
-                fin_map[lbl] = row['id']
-            
-            sel_fin_del = st.selectbox("Selecione o lançamento para apagar:", list(fin_map.keys()))
-            id_fin_del = fin_map[sel_fin_del]
-            
-            if st.button("Confirmar Exclusão Financeira"):
-                delete_data("Financeiro", id_fin_del)
-                st.success("Apagado!")
-                st.rerun()
+            else: st.warning("Valor inválido")
 
 elif menu == "Produtos":
     st.header("👗 Produtos")
-    t_cad, t_edit, t_del = st.tabs(["Cadastrar", "Editar", "Excluir"])
+    t1, t2, t3 = st.tabs(["Cadastrar", "Editar", "Excluir"])
     
-    with t_cad:
-        with st.form("new_prod"):
+    with t1:
+        with st.form("add"):
             nome = st.text_input("Nome")
             tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"])
-            # TROCA DE INPUT NUMÉRICO POR TEXTO PARA SUPORTAR VÍRGULA
+            # MUDANÇA: Inputs agora são TEXTO para evitar erro de vírgula
             custo_txt = st.text_input("Custo (Ex: 85,90)", value="0,00")
             venda_txt = st.text_input("Venda (Ex: 120,00)", value="0,00")
             
             if st.form_submit_button("Salvar"):
-                c_float = parse_brl(custo_txt)
-                v_float = parse_brl(venda_txt)
-                
-                # Salva como string formatada para garantir leitura correta depois
-                c_str = f"{c_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                v_str = f"{v_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                
-                append_data("Produtos", [str(uuid.uuid4()), nome, tam, c_str, v_str, "Disponível"])
-                st.success("Salvo!")
+                c_float = converter_input_para_float(custo_txt)
+                v_float = converter_input_para_float(venda_txt)
+                append_data("Produtos", [str(uuid.uuid4()), nome, tam, f"{c_float:.2f}".replace('.',','), f"{v_float:.2f}".replace('.',','), "Disponível"])
+                st.success("Produto Salvo!")
                 st.rerun()
-    
+
     df = load_data("Produtos")
-    
-    with t_edit:
+    # Exibe tabela formatada
+    if not df.empty:
+        df_show = df.drop(columns=['id'], errors='ignore').copy()
+        st.dataframe(df_show, use_container_width=True)
+        
+    with t2:
         if not df.empty:
-            prod_map = {f"{row['nome']} - {row['tamanho']}": row['id'] for i, row in df.iterrows()}
-            sel_prod = st.selectbox("Selecione para Editar", list(prod_map.keys()))
-            id_sel = prod_map[sel_prod]
-            dados_atuais = df[df['id'] == id_sel].iloc[0]
-            with st.form("edit_prod"):
-                n_nome = st.text_input("Nome", value=dados_atuais['nome'])
-                n_tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"], index=["PP","P","M","G","GG","Único"].index(dados_atuais['tamanho']) if dados_atuais['tamanho'] in ["PP","P","M","G","GG","Único"] else 0)
+            p_opts = {f"{row['nome']} - {row['tamanho']}": row['id'] for i, row in df.iterrows()}
+            sel = st.selectbox("Editar qual?", list(p_opts.keys()))
+            row = df[df['id']==p_opts[sel]].iloc[0]
+            with st.form("edit"):
+                n_nome = st.text_input("Nome", value=row['nome'])
+                n_tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"], index=["PP","P","M","G","GG","Único"].index(row['tamanho']) if row['tamanho'] in ["PP","P","M","G","GG","Único"] else 0)
+                # Carrega valor convertendo para BR
+                val_c_atual = str(row['preco_custo']).replace('.',',')
+                val_v_atual = str(row['preco_venda']).replace('.',',')
+                n_custo = st.text_input("Custo", value=val_c_atual)
+                n_venda = st.text_input("Venda", value=val_v_atual)
                 
-                # Carrega valor formatado para edição
-                custo_atual = parse_brl(dados_atuais['preco_custo'])
-                venda_atual = parse_brl(dados_atuais['preco_venda'])
-                c_fmt = f"{custo_atual:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                v_fmt = f"{venda_atual:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                
-                n_custo_txt = st.text_input("Custo", value=c_fmt)
-                n_venda_txt = st.text_input("Venda", value=v_fmt)
-                
-                if st.form_submit_button("Atualizar Produto"):
-                    nc = parse_brl(n_custo_txt)
-                    nv = parse_brl(n_venda_txt)
-                    nc_str = f"{nc:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    nv_str = f"{nv:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-                    
-                    update_data("Produtos", id_sel, {2: n_nome, 3: n_tam, 4: nc_str, 5: nv_str})
+                if st.form_submit_button("Atualizar"):
+                    cf = f"{converter_input_para_float(n_custo):.2f}".replace('.',',')
+                    vf = f"{converter_input_para_float(n_venda):.2f}".replace('.',',')
+                    update_data("Produtos", p_opts[sel], {2:n_nome, 3:n_tam, 4:cf, 5:vf})
                     st.success("Atualizado!")
                     st.rerun()
 
-    with t_del:
+    with t3:
         if not df.empty:
-            sel_del = st.selectbox("Selecione para Excluir", list(prod_map.keys()), key="del_prod_sel")
-            id_del = prod_map[sel_del]
-            if st.button("🗑️ Excluir Produto Definitivamente"):
-                delete_data("Produtos", id_del)
+            sel_del = st.selectbox("Excluir qual?", list(p_opts.keys()), key='del_p')
+            if st.button("Confirmar Exclusão"):
+                delete_data("Produtos", p_opts[sel_del])
                 st.success("Excluído!")
                 st.rerun()
-    
-    st.divider()
-    if not df.empty:
-        df_show = df.drop(columns=['id'], errors='ignore').copy()
-        df_show['preco_custo'] = df_show['preco_custo'].apply(lambda x: format_brl(parse_brl(x)))
-        df_show['preco_venda'] = df_show['preco_venda'].apply(lambda x: format_brl(parse_brl(x)))
-        st.dataframe(df_show)
 
 elif menu == "Clientes":
     st.header("👥 Clientes")
-    t_cad, t_edit, t_del = st.tabs(["Cadastrar", "Editar", "Excluir"])
-    
-    with t_cad:
-        with st.form("new_cli"):
-            nome = st.text_input("Nome")
-            whats = st.text_input("WhatsApp")
+    t1, t2, t3 = st.tabs(["Cadastrar", "Editar", "Excluir"])
+    with t1:
+        with st.form("c_add"):
+            nom = st.text_input("Nome")
+            zap = st.text_input("WhatsApp")
             end = st.text_input("Endereço")
             if st.form_submit_button("Salvar"):
-                append_data("Clientes", [str(uuid.uuid4()), nome, whats, end])
+                append_data("Clientes", [str(uuid.uuid4()), nom, zap, end])
                 st.success("Salvo!")
                 st.rerun()
     
     df = load_data("Clientes")
+    if not df.empty: st.dataframe(df.drop(columns=['id'], errors='ignore'), use_container_width=True)
     
-    with t_edit:
+    with t2:
         if not df.empty:
-            cli_map = {row['nome']: row['id'] for i, row in df.iterrows()}
-            sel_cli = st.selectbox("Selecione para Editar", list(cli_map.keys()))
-            id_sel = cli_map[sel_cli]
-            dados = df[df['id'] == id_sel].iloc[0]
-            with st.form("edit_cli"):
-                n_nome = st.text_input("Nome", value=dados['nome'])
-                n_whats = st.text_input("WhatsApp", value=dados['whatsapp'])
-                n_end = st.text_input("Endereço", value=dados['endereco'])
-                if st.form_submit_button("Atualizar Cliente"):
-                    update_data("Clientes", id_sel, {2: n_nome, 3: n_whats, 4: n_end})
-                    st.success("Atualizado!")
+            c_opts = {row['nome']: row['id'] for i, row in df.iterrows()}
+            sel = st.selectbox("Editar", list(c_opts.keys()))
+            row = df[df['id']==c_opts[sel]].iloc[0]
+            with st.form("c_edit"):
+                nn = st.text_input("Nome", row['nome'])
+                nz = st.text_input("Whats", row['whatsapp'])
+                ne = st.text_input("End", row['endereco'])
+                if st.form_submit_button("Atualizar"):
+                    update_data("Clientes", c_opts[sel], {2:nn, 3:nz, 4:ne})
+                    st.success("Ok!")
+                    st.rerun()
+    with t3:
+        if not df.empty:
+            sel_d = st.selectbox("Excluir", list(c_opts.keys()), key='del_c')
+            if st.button("Apagar Cliente"):
+                delete_data("Clientes", c_opts[sel_d])
+                st.success("Apagado!")
+                st.rerun()
+
+elif menu == "Controle de Malas":
+    st.header("👜 Malas")
+    t1, t2, t3 = st.tabs(["Enviar", "Retorno", "Cancelar"])
+    df_c = load_data("Clientes")
+    df_p = load_data("Produtos")
+    
+    with t1:
+        if not df_c.empty and not df_p.empty:
+            with st.form("nm"):
+                cli = st.selectbox("Cliente", df_c['nome'].unique())
+                disp = df_p[df_p['status']=='Disponível']
+                pm = {f"{r['nome']} {r['tamanho']}": r['id'] for i,r in disp.iterrows()}
+                sels = st.multiselect("Peças", list(pm.keys()))
+                if st.form_submit_button("Enviar"):
+                    ids = ",".join([pm[x] for x in sels])
+                    cid = df_c[df_c['nome']==cli]['id'].values[0]
+                    append_data("Malas", [str(uuid.uuid4()), cid, cli, datetime.now().strftime("%Y-%m-%d"), ids, "Aberta"])
+                    for x in sels: update_product_status(pm[x], "Em Mala")
+                    st.success("Enviado!")
                     st.rerun()
 
-    with t_del:
-         if not df.empty:
-            sel_del_c = st.selectbox("Selecione para Excluir", list(cli_map.keys()), key="del_cli_sel")
-            id_del_c = cli_map[sel_del_c]
-            if st.button("🗑️ Excluir Cliente"):
-                delete_data("Clientes", id_del_c)
-                st.success("Excluído!")
-                st.rerun()
+    with t2:
+        df_m = load_data("Malas")
+        if not df_m.empty and 'status' in df_m.columns:
+            abertas = df_m[df_m['status']=='Aberta']
+            if not abertas.empty:
+                m_opts = {f"{r['nome_cliente']} ({r['data_envio']})": r['id'] for i,r in abertas.iterrows()}
+                sel = st.selectbox("Mala", list(m_opts.keys()))
+                row = abertas[abertas['id']==m_opts[sel]].iloc[0]
+                l_ids = str(row['lista_ids_produtos']).split(',')
+                
+                st.write(f"Cliente: {row['nome_cliente']}")
+                with st.form("ret"):
+                    devs = {}
+                    for pid in l_ids:
+                        pi = df_p[df_p['id']==pid]
+                        if not pi.empty:
+                            lbl = f"{pi['nome'].values[0]} ({format_brl(converter_input_para_float(pi['preco_venda'].values[0]))})"
+                            devs[pid] = st.checkbox(f"DEVOLVEU: {lbl}", True, key=pid)
+                    
+                    st.divider()
+                    c1, c2 = st.columns(2)
+                    with c1: fp = st.selectbox("Pagamento", ["Pix","Dinheiro","Cartão"])
+                    with c2: pa = st.number_input("Parcelas", 1,12,1)
+                    
+                    if st.form_submit_button("Processar"):
+                        tot = 0
+                        for pid, dev in devs.items():
+                            if dev: update_product_status(pid, "Disponível")
+                            else:
+                                update_product_status(pid, "Vendido")
+                                val = converter_input_para_float(df_p[df_p['id']==pid]['preco_venda'].values[0])
+                                tot += val
+                        if tot > 0:
+                            for l in gerar_lancamentos(tot, pa, fp, row['nome_cliente'], "Mala"): append_data("Financeiro", l)
+                        
+                        update_data("Malas", m_opts[sel], {6: "Finalizada"}) # Status col 6
+                        st.success("Concluído!")
+                        st.rerun()
+
+    with t3:
+        if not df_m.empty:
+             del_m = st.selectbox("Excluir Mala", list(m_opts.keys()) if 'm_opts' in locals() else [])
+             if st.button("Cancelar Mala"):
+                 mid = m_opts[del_m]
+                 # Devolve produtos
+                 pids = str(df_m[df_m['id']==mid]['lista_ids_produtos'].values[0]).split(',')
+                 for p in pids: update_product_status(p, "Disponível")
+                 delete_data("Malas", mid)
+                 st.success("Cancelada e produtos devolvidos!")
+                 st.rerun()
+
+elif menu == "Financeiro":
+    st.header("💰 Finanças")
+    df = load_data("Financeiro")
+    t1, t2, t3 = st.tabs(["Extrato", "Receber", "Excluir"])
     
-    if not df.empty:
-        st.dataframe(df.drop(columns=['id'], errors='ignore'))
+    with t1:
+        if not df.empty:
+            # Mostra valor formatado visualmente
+            show = df.drop(columns=['id'], errors='ignore').copy()
+            show['valor'] = show['valor'].apply(lambda x: format_brl(converter_input_para_float(x)))
+            st.dataframe(show, use_container_width=True)
+
+    with t2:
+        if not df.empty:
+            pen = df[df['status_pagamento']=='Pendente']
+            if not pen.empty:
+                opts = {}
+                for i, r in pen.iterrows():
+                    lbl = f"{r['descricao']} - {format_brl(converter_input_para_float(r['valor']))}"
+                    opts[lbl] = r['id']
+                sel = st.selectbox("Confirmar qual?", list(opts.keys()))
+                if st.button("Confirmar Recebimento"):
+                    update_finance_status(opts[sel], "Pago")
+                    st.success("Recebido!")
+                    st.rerun()
+            else: st.info("Nada pendente.")
+
+    with t3:
+        if not df.empty:
+            opts = {f"{r['descricao']} ({r['valor']})": r['id'] for i,r in df.iterrows()}
+            sel = st.selectbox("Apagar Lançamento", list(opts.keys()))
+            if st.button("Apagar"):
+                delete_data("Financeiro", opts[sel])
+                st.success("Apagado!")
+                st.rerun()
