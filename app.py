@@ -284,25 +284,18 @@ if menu == "Dashboard":
                 val = converter_input_para_float(row['valor'])
                 data_lanc = str(row['data_lancamento'])
                 
-                # Contagem Vendas Mês
                 if row['tipo'] == 'Venda' and data_lanc.startswith(mes_atual):
-                    # Conta cada parcela lançada como parte do volume de venda, 
-                    # mas para contagem de "Vendas Feitas" seria ideal contar UUIDs únicos.
-                    # Simplificação: Somando volume financeiro do mês
                     valor_vendas_mes += val
-                    vendas_no_mes += 1 # Contagem de lançamentos (parcelas)
+                    vendas_no_mes += 1 
                 
-                # A Receber
                 if row['tipo'] == 'Venda' and row['status_pagamento'] == 'Pendente':
                     receber += val
                 
-                # Caixa (Pago)
                 if row['status_pagamento'] == 'Pago':
                     if row['tipo'] in ['Venda', 'Entrada']:
                         caixa_bruto += val
                         
-                        # CÁLCULO DA TAXA DE CARTÃO (12% sobre o valor da venda PAGA)
-                        # Verifica se é cartão
+                        # Taxa 12%
                         forma = str(row['forma_pagamento']).lower()
                         if "cartão" in forma or "credito" in forma or "debito" in forma or "crédito" in forma or "débito" in forma:
                             taxa = val * 0.12
@@ -312,13 +305,8 @@ if menu == "Dashboard":
                         caixa_bruto -= val
 
             caixa_liquido = caixa_bruto - taxas_cartao
-            
-            # Ticket Médio (Simplificado pelos lançamentos do mês)
             ticket_medio = valor_vendas_mes / vendas_no_mes if vendas_no_mes > 0 else 0
 
-            # --- EXIBIÇÃO ---
-            
-            # Linha 1: Financeiro Principal
             st.markdown("### 💸 Financeiro")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Caixa Líquido (Real)", format_brl(caixa_liquido), delta=f"- {format_brl(taxas_cartao)} Taxas")
@@ -328,7 +316,6 @@ if menu == "Dashboard":
 
             st.divider()
 
-            # Linha 2: Métricas Operacionais
             st.markdown("### 📊 Operacional (Mês Atual)")
             c5, c6, c7 = st.columns(3)
             c5.metric("Peças Disponíveis", f"{qtd_produtos} un.")
@@ -358,7 +345,7 @@ elif menu == "Venda Direta":
         st.divider()
         st.markdown(f"#### Subtotal: {format_brl(subtotal)}")
         
-        # --- LÓGICA DE DESCONTO ---
+        # --- DESCONTO BIDIRECIONAL ---
         if 'venda_subtotal' not in st.session_state or st.session_state.venda_subtotal != subtotal:
             st.session_state.venda_subtotal = float(subtotal)
             st.session_state.desc_pct = 0.0
@@ -366,20 +353,19 @@ elif menu == "Venda Direta":
 
         def update_val_from_pct():
             pct = st.session_state.key_pct
-            new_val = st.session_state.last_subtotal * (1 - pct / 100) if hasattr(st.session_state, 'last_subtotal') else st.session_state.venda_subtotal * (1 - pct / 100)
+            new_val = st.session_state.venda_subtotal * (1 - pct / 100)
             st.session_state.key_val = float(f"{new_val:.2f}")
 
         def update_pct_from_val():
             val = st.session_state.key_val
-            base = st.session_state.last_subtotal if hasattr(st.session_state, 'last_subtotal') else st.session_state.venda_subtotal
+            base = st.session_state.venda_subtotal
             if base > 0:
                 new_pct = ((base - val) / base) * 100
                 st.session_state.key_pct = float(f"{new_pct:.1f}")
             else:
                 st.session_state.key_pct = 0.0
         
-        # Garante persistência da base
-        st.session_state.last_subtotal = float(subtotal)
+        st.session_state.venda_subtotal = float(subtotal)
 
         c_desc_pct, c_val_final = st.columns(2)
         with c_desc_pct:
@@ -388,7 +374,6 @@ elif menu == "Venda Direta":
             st.number_input("Valor Final (R$)", 0.0, step=0.01, key="key_val", on_change=update_pct_from_val, format="%.2f")
             
         final = st.session_state.key_val
-        # ---------------------------
 
         st.divider()
         c1, c2 = st.columns(2)
@@ -401,6 +386,9 @@ elif menu == "Venda Direta":
                 for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta"): append_data("Financeiro", l)
                 st.success("Venda Realizada!")
                 st.balloons()
+                st.session_state.venda_subtotal = 0.0
+                st.session_state.key_pct = 0.0
+                st.session_state.key_val = 0.0
                 st.rerun()
             else: st.warning("Valor inválido")
 
@@ -409,32 +397,41 @@ elif menu == "Produtos":
     t1, t2, t3 = st.tabs(["Cadastrar", "Editar", "Excluir"])
     
     with t1:
-        st.info("💡 Dica: Ao digitar o Custo, o sistema sugere o preço de venda.")
-        with st.form("add"):
-            nome = st.text_input("Nome")
-            tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"])
-            
-            # Input de Custo com Callback ou apenas informativo
-            custo_txt = st.text_input("Custo da Peça (R$)", value="0,00", key="custo_input")
-            
-            # Lógica de Sugestão de Preço (Visual)
-            sugestao_msg = ""
-            if custo_txt and custo_txt != "0,00":
-                c_val = converter_input_para_float(custo_txt)
-                if c_val > 0:
-                    # FÓRMULA: Custo + 1.60 + 12%(Custo) + 100%(Custo)
-                    tag = 1.60
-                    taxa = c_val * 0.12
-                    lucro = c_val # 100%
-                    sugestao = c_val + tag + taxa + lucro
-                    sugestao_msg = f"💰 Sugestão de Venda: **{format_brl(sugestao)}** (Base: Custo + R$1.60 + 12% Taxa + 100% Lucro)"
-            
-            if sugestao_msg:
-                st.info(sugestao_msg)
+        st.info("💡 Dica: Digite o Custo e aperte 'Enter' para ver a Sugestão de Preço.")
+        
+        # --- REMOVIDO ST.FORM PARA PERMITIR CÁLCULO DINÂMICO ---
+        # Agora o "Custo" atualiza a tela assim que perde o foco
+        
+        # Inicializa chaves se não existirem (para limpar depois)
+        if "prod_nome" not in st.session_state: st.session_state.prod_nome = ""
+        if "prod_custo" not in st.session_state: st.session_state.prod_custo = "0,00"
+        if "prod_venda" not in st.session_state: st.session_state.prod_venda = "0,00"
 
-            venda_txt = st.text_input("Preço de Venda Final (R$)", value="0,00")
-            
-            if st.form_submit_button("Salvar"):
+        nome = st.text_input("Nome", key="prod_nome")
+        tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"], key="prod_tam")
+        
+        custo_txt = st.text_input("Custo da Peça (R$)", key="prod_custo")
+        
+        # Lógica de Sugestão
+        sugestao_val = 0.0
+        if custo_txt and custo_txt != "0,00":
+            c_val = converter_input_para_float(custo_txt)
+            if c_val > 0:
+                tag = 1.60
+                taxa = c_val * 0.12
+                lucro = c_val 
+                sugestao_val = c_val + tag + taxa + lucro
+                st.info(f"💰 **Sugestão de Venda: {format_brl(sugestao_val)}** (Custo + R$1.60 + 12% + 100%)")
+                
+                # Botão para aplicar sugestão
+                if st.button("Usar Preço Sugerido"):
+                    st.session_state.prod_venda = f"{sugestao_val:.2f}".replace('.', ',')
+                    st.rerun()
+
+        venda_txt = st.text_input("Preço de Venda Final (R$)", key="prod_venda")
+        
+        if st.button("Salvar Produto"):
+            if nome:
                 c_float = converter_input_para_float(custo_txt)
                 v_float = converter_input_para_float(venda_txt)
                 
@@ -443,7 +440,14 @@ elif menu == "Produtos":
                 
                 append_data("Produtos", [str(uuid.uuid4()), nome, tam, c_save, v_save, "Disponível"])
                 st.success("Produto Salvo!")
+                
+                # Limpar campos
+                st.session_state.prod_nome = ""
+                st.session_state.prod_custo = "0,00"
+                st.session_state.prod_venda = "0,00"
                 st.rerun()
+            else:
+                st.warning("Preencha o nome.")
 
     df = load_data("Produtos")
     
