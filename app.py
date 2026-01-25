@@ -48,60 +48,79 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- ESTILIZAÇÃO CSS (VERSÃO SEGURA E CORRIGIDA) ---
+# --- ESTILIZAÇÃO CSS (CORREÇÃO TOTAL DO DROPDOWN) ---
 st.markdown("""
     <style>
-    /* 1. FUNDO GERAL ROSÊ */
+    /* 1. FUNDO GERAL */
     .stApp {
-        background-color: #FDF2F4;
+        background-color: #FDF2F4 !important;
     }
 
-    /* 2. FORÇAR TEXTOS ESCUROS (Especificando elementos para não quebrar o layout) */
+    /* 2. TEXTOS GERAIS */
     h1, h2, h3, h4, h5, h6, p, span, label, li, .stMarkdown, .stText, th, td {
         color: #5C3A3B !important;
     }
 
-    /* 3. INPUTS E CAMPOS DE TEXTO (Fundo Branco Obrigatório) */
+    /* 3. INPUTS (CAMPOS FECHADOS) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
         background-color: #FFFFFF !important;
         color: #000000 !important;
         border: 1px solid #E69496 !important;
     }
 
-    /* 4. SELECTBOX E MULTISELECT (Fundo Branco) */
+    /* 4. CAIXA DE SELEÇÃO (SELECTBOX FECHADO) */
     div[data-baseweb="select"] > div {
         background-color: #FFFFFF !important;
         color: #000000 !important;
         border: 1px solid #E69496 !important;
     }
-    
-    /* Texto dentro do Selectbox */
     div[data-baseweb="select"] span {
         color: #000000 !important;
     }
-    
-    /* Ícone do Selectbox */
     div[data-baseweb="select"] svg {
         fill: #5C3A3B !important;
     }
 
-    /* As opções do menu dropdown quando clica */
+    /* 5. CORREÇÃO CRÍTICA: A LISTA SUSPENSA (DROPDOWN ABERTO) */
+    
+    /* O container flutuante (Popover) */
+    div[data-baseweb="popover"],
+    div[data-baseweb="popover"] > div {
+        background-color: #FFFFFF !important;
+    }
+
+    /* A lista de itens (Menu) */
     ul[data-baseweb="menu"] {
         background-color: #FFFFFF !important;
     }
+
+    /* As opções individuais da lista */
     li[data-baseweb="option"] {
-        color: #000000 !important;
+        color: #000000 !important; /* Texto Preto */
+        background-color: #FFFFFF !important; /* Fundo Branco */
+    }
+    
+    /* Texto dentro da opção */
+    li[data-baseweb="option"] div {
+         color: #000000 !important;
     }
 
-    /* 5. MENU LATERAL */
+    /* Item destacado/selecionado na lista */
+    li[data-baseweb="option"][aria-selected="true"] {
+        background-color: #FDF2F4 !important; /* Rosê Claro */
+        color: #000000 !important;
+        font-weight: bold !important;
+    }
+
+    /* 6. MENU LATERAL */
     [data-testid="stSidebar"] {
-        background-color: #FFF0F5;
+        background-color: #FFF0F5 !important;
     }
     [data-testid="stSidebar"] * {
         color: #5C3A3B !important;
     }
 
-    /* 6. BOTÕES */
+    /* 7. BOTÕES */
     .stButton > button {
         background-color: #E69496 !important;
         color: white !important;
@@ -109,21 +128,10 @@ st.markdown("""
         border: none;
         font-weight: bold;
     }
-    .stButton > button:hover {
-        background-color: #D4787A !important;
-        color: white !important;
-    }
     
-    /* 7. CHECKBOX */
-    .stCheckbox label span {
-        color: #5C3A3B !important;
-    }
-    
-    /* 8. TABELAS (DATAFRAME) */
+    /* 8. TABELAS */
     div[data-testid="stDataFrame"] {
         background-color: #FFFFFF !important;
-        border-radius: 10px;
-        padding: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
