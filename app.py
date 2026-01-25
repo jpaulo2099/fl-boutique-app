@@ -83,7 +83,7 @@ st.markdown("""
     }
     div[role="radiogroup"] label { color: #5C3A3B !important; }
     
-    /* 4. INPUTS E CAMPOS (Forçando Branco Puro para iPhone) */
+    /* 4. INPUTS E CAMPOS */
     .stTextInput input, .stNumberInput input, .stDateInput input {
         background-color: #FFFFFF !important; 
         color: #000000 !important; 
@@ -100,7 +100,7 @@ st.markdown("""
     div[data-baseweb="select"] span { color: #000000 !important; }
     div[data-baseweb="select"] svg { fill: #5C3A3B !important; }
     
-    /* Popover/Lista Suspensa (Correção Fundo Preto) */
+    /* Popover/Lista Suspensa */
     div[data-baseweb="popover"], div[data-baseweb="popover"] > div, ul[data-baseweb="menu"] {
         background-color: #FFFFFF !important;
     }
@@ -124,7 +124,7 @@ st.markdown("""
     /* 7. TABELA */
     [data-testid="stDataFrame"] { background-color: #FFFFFF !important; }
     
-    /* 8. BOX DE INFORMAÇÃO (Sugestão de Preço) */
+    /* 8. BOX DE INFORMAÇÃO */
     .stAlert { background-color: #FFFFFF !important; color: #000000 !important; border: 1px solid #E69496; }
     </style>
     """, unsafe_allow_html=True)
@@ -262,7 +262,6 @@ if menu == "Dashboard":
     
     if not df_fin.empty and not df_prod.empty:
         try:
-            # --- CÁLCULOS DE ESTOQUE ---
             prods_disp = df_prod[df_prod['status']=='Disponível']
             custo_total_estoque = 0
             qtd_produtos = len(prods_disp)
@@ -270,12 +269,10 @@ if menu == "Dashboard":
             for x in prods_disp['preco_custo']:
                 custo_total_estoque += converter_input_para_float(x)
             
-            # --- CÁLCULOS FINANCEIROS ---
             receber = 0
             caixa_bruto = 0
             taxas_cartao = 0
             
-            # Filtro Mês Atual
             mes_atual = datetime.now().strftime("%Y-%m")
             vendas_no_mes = 0
             valor_vendas_mes = 0
@@ -294,13 +291,10 @@ if menu == "Dashboard":
                 if row['status_pagamento'] == 'Pago':
                     if row['tipo'] in ['Venda', 'Entrada']:
                         caixa_bruto += val
-                        
-                        # Taxa 12%
                         forma = str(row['forma_pagamento']).lower()
                         if "cartão" in forma or "credito" in forma or "debito" in forma or "crédito" in forma or "débito" in forma:
                             taxa = val * 0.12
                             taxas_cartao += taxa
-                            
                     elif row['tipo'] == 'Despesa':
                         caixa_bruto -= val
 
@@ -394,10 +388,12 @@ elif menu == "Venda Direta":
 
 elif menu == "Produtos":
     st.header("👗 Produtos")
-    t1, t2, t3 = st.tabs(["Cadastrar", "Editar", "Excluir"])
+    df = load_data("Produtos")
+    t1, t2, t3, t4, t5 = st.tabs(["🆕 Novo Cadastro", "📦 Reposição (Add Qtd)", "📊 Visão de Estoque", "✏️ Editar", "🗑️ Excluir"])
     
+    # --- TAB 1: NOVO CADASTRO (Cria item do zero) ---
     with t1:
-        st.info("💡 Dica: Digite o Custo e aperte 'Enter' para ver a Sugestão de Preço.")
+        st.caption("Cadastre um produto que nunca existiu na loja.")
         
         if "prod_nome" not in st.session_state: st.session_state.prod_nome = ""
         if "prod_custo" not in st.session_state: st.session_state.prod_custo = "0,00"
@@ -408,38 +404,40 @@ elif menu == "Produtos":
         
         custo_txt = st.text_input("Custo da Peça (R$)", key="prod_custo")
         
-        # --- LÓGICA DE PRECIFICAÇÃO AJUSTADA ---
         sugestao_val = 0.0
         if custo_txt and custo_txt != "0,00":
             c_val = converter_input_para_float(custo_txt)
             if c_val > 0:
-                tag = 1.06  # Custo da Tag
-                base = c_val + tag # (Custo + Tag)
-                lucro = base # 100% de Lucro sobre (Custo + Tag)
+                tag = 1.06 
+                base = c_val + tag 
+                lucro = base 
                 subtotal = base + lucro
-                taxa = subtotal * 0.12 # 12% sobre o Tudo
-                
+                taxa = subtotal * 0.12
                 sugestao_val = subtotal + taxa
-                
-                st.info(f"💰 **Sugestão de Venda: {format_brl(sugestao_val)}** \n\n (Custo + Tag R$1,06 + 100% Lucro) + 12% Taxa")
-                
-                if st.button("Usar Preço Sugerido"):
+                st.info(f"💰 **Sugestão: {format_brl(sugestao_val)}**")
+                if st.button("Usar Preço Sugerido", key="btn_sug_novo"):
                     st.session_state.prod_venda = f"{sugestao_val:.2f}".replace('.', ',')
                     st.rerun()
 
         venda_txt = st.text_input("Preço de Venda Final (R$)", key="prod_venda")
         
-        if st.button("Salvar Produto"):
+        qtd_cadastro = st.number_input("Quantidade de Peças", min_value=1, value=1, key="qtd_novo")
+        
+        if st.button("Salvar Novo Produto"):
             if nome:
                 c_float = converter_input_para_float(custo_txt)
                 v_float = converter_input_para_float(venda_txt)
-                
                 c_save = f"{c_float:.2f}"
                 v_save = f"{v_float:.2f}"
                 
-                append_data("Produtos", [str(uuid.uuid4()), nome, tam, c_save, v_save, "Disponível"])
-                st.success("Produto Salvo!")
-                
+                conn = get_connection()
+                if conn:
+                    ws = conn.worksheet("Produtos")
+                    rows = [[str(uuid.uuid4()), nome, tam, c_save, v_save, "Disponível"] for _ in range(qtd_cadastro)]
+                    for r in rows: ws.append_row(r)
+                    st.cache_data.clear()
+
+                st.success(f"{qtd_cadastro} Produtos Criados!")
                 st.session_state.prod_nome = ""
                 st.session_state.prod_custo = "0,00"
                 st.session_state.prod_venda = "0,00"
@@ -447,17 +445,70 @@ elif menu == "Produtos":
             else:
                 st.warning("Preencha o nome.")
 
-    df = load_data("Produtos")
-    
-    if not df.empty:
-        df_show = df.drop(columns=['id'], errors='ignore').copy()
-        if 'preco_custo' in df_show.columns:
-            df_show['preco_custo'] = df_show['preco_custo'].apply(lambda x: format_brl(converter_input_para_float(x)))
-        if 'preco_venda' in df_show.columns:
-            df_show['preco_venda'] = df_show['preco_venda'].apply(lambda x: format_brl(converter_input_para_float(x)))
-        st.dataframe(df_show, use_container_width=True)
-        
+    # --- TAB 2: REPOSIÇÃO (Adiciona qtd a item existente) ---
     with t2:
+        st.caption("Selecione um produto existente para adicionar mais peças ao estoque.")
+        if not df.empty:
+            # Cria lista de opções únicas (Nome + Tamanho)
+            unique_opts = df[['nome', 'tamanho', 'preco_custo', 'preco_venda']].drop_duplicates(subset=['nome', 'tamanho'])
+            
+            # Dicionário para lookup
+            opt_map = {}
+            for i, row in unique_opts.iterrows():
+                label = f"{row['nome']} - {row['tamanho']}"
+                opt_map[label] = row
+            
+            sel_repo = st.selectbox("Selecione o Produto", list(opt_map.keys()))
+            
+            # Pega dados do selecionado para preencher
+            dados_repo = opt_map[sel_repo]
+            
+            st.divider()
+            st.text("Confira os valores para este novo lote:")
+            
+            # Valores pré-preenchidos (convertidos para BR)
+            c_pre = format_brl(converter_input_para_float(dados_repo['preco_custo'])).replace("R$ ","")
+            v_pre = format_brl(converter_input_para_float(dados_repo['preco_venda'])).replace("R$ ","")
+            
+            # Permite editar se o preço mudou no novo lote
+            c_repo = st.text_input("Custo (R$)", value=c_pre, key="custo_repo")
+            v_repo = st.text_input("Venda (R$)", value=v_pre, key="venda_repo")
+            q_repo = st.number_input("Quantidade a Adicionar", min_value=1, value=1, key="qtd_repo")
+            
+            if st.button("Adicionar ao Estoque"):
+                c_float = converter_input_para_float(c_repo)
+                v_float = converter_input_para_float(v_repo)
+                c_save = f"{c_float:.2f}"
+                v_save = f"{v_float:.2f}"
+                
+                conn = get_connection()
+                if conn:
+                    ws = conn.worksheet("Produtos")
+                    # Cria novas linhas com os mesmos dados básicos, mas novo ID
+                    rows = [[str(uuid.uuid4()), dados_repo['nome'], dados_repo['tamanho'], c_save, v_save, "Disponível"] for _ in range(q_repo)]
+                    for r in rows: ws.append_row(r)
+                    st.cache_data.clear()
+                
+                st.success(f"Adicionado {q_repo} unidades de {dados_repo['nome']}!")
+                st.rerun()
+        else:
+            st.info("Cadastre produtos na aba 'Novo Cadastro' primeiro.")
+
+    # --- TAB 3: VISÃO DE ESTOQUE (Agrupada) ---
+    with t3:
+        st.subheader("📦 Visão Consolidada")
+        if not df.empty:
+            estoque_real = df[df['status'] == 'Disponível']
+            if not estoque_real.empty:
+                resumo = estoque_real.groupby(['nome', 'tamanho']).size().reset_index(name='Quantidade')
+                st.dataframe(resumo, use_container_width=True)
+            else:
+                st.info("Sem estoque disponível.")
+        else:
+            st.info("Sem dados.")
+
+    # --- TAB 4: EDITAR (Item a Item) ---
+    with t4:
         if not df.empty:
             p_opts = {f"{row['nome']} - {row['tamanho']}": row['id'] for i, row in df.iterrows()}
             sel = st.selectbox("Editar qual?", list(p_opts.keys()))
@@ -479,13 +530,24 @@ elif menu == "Produtos":
                     st.success("Atualizado!")
                     st.rerun()
 
-    with t3:
+    # --- TAB 5: EXCLUIR ---
+    with t5:
         if not df.empty:
             sel_del = st.selectbox("Excluir qual?", list(p_opts.keys()), key='del_p')
             if st.button("Confirmar Exclusão"):
                 delete_data("Produtos", p_opts[sel_del])
                 st.success("Excluído!")
                 st.rerun()
+    
+    st.divider()
+    st.caption("Lista completa de registros individuais (banco de dados):")
+    if not df.empty:
+        df_show = df.drop(columns=['id'], errors='ignore').copy()
+        if 'preco_custo' in df_show.columns:
+            df_show['preco_custo'] = df_show['preco_custo'].apply(lambda x: format_brl(converter_input_para_float(x)))
+        if 'preco_venda' in df_show.columns:
+            df_show['preco_venda'] = df_show['preco_venda'].apply(lambda x: format_brl(converter_input_para_float(x)))
+        st.dataframe(df_show, use_container_width=True)
 
 elif menu == "Clientes":
     st.header("👥 Clientes")
