@@ -399,10 +399,6 @@ elif menu == "Produtos":
     with t1:
         st.info("💡 Dica: Digite o Custo e aperte 'Enter' para ver a Sugestão de Preço.")
         
-        # --- REMOVIDO ST.FORM PARA PERMITIR CÁLCULO DINÂMICO ---
-        # Agora o "Custo" atualiza a tela assim que perde o foco
-        
-        # Inicializa chaves se não existirem (para limpar depois)
         if "prod_nome" not in st.session_state: st.session_state.prod_nome = ""
         if "prod_custo" not in st.session_state: st.session_state.prod_custo = "0,00"
         if "prod_venda" not in st.session_state: st.session_state.prod_venda = "0,00"
@@ -412,18 +408,21 @@ elif menu == "Produtos":
         
         custo_txt = st.text_input("Custo da Peça (R$)", key="prod_custo")
         
-        # Lógica de Sugestão
+        # --- LÓGICA DE PRECIFICAÇÃO AJUSTADA ---
         sugestao_val = 0.0
         if custo_txt and custo_txt != "0,00":
             c_val = converter_input_para_float(custo_txt)
             if c_val > 0:
-                tag = 1.60
-                taxa = c_val * 0.12
-                lucro = c_val 
-                sugestao_val = c_val + tag + taxa + lucro
-                st.info(f"💰 **Sugestão de Venda: {format_brl(sugestao_val)}** (Custo + R$1.60 + 12% + 100%)")
+                tag = 1.06  # Custo da Tag
+                base = c_val + tag # (Custo + Tag)
+                lucro = base # 100% de Lucro sobre (Custo + Tag)
+                subtotal = base + lucro
+                taxa = subtotal * 0.12 # 12% sobre o Tudo
                 
-                # Botão para aplicar sugestão
+                sugestao_val = subtotal + taxa
+                
+                st.info(f"💰 **Sugestão de Venda: {format_brl(sugestao_val)}** \n\n (Custo + Tag R$1,06 + 100% Lucro) + 12% Taxa")
+                
                 if st.button("Usar Preço Sugerido"):
                     st.session_state.prod_venda = f"{sugestao_val:.2f}".replace('.', ',')
                     st.rerun()
@@ -441,7 +440,6 @@ elif menu == "Produtos":
                 append_data("Produtos", [str(uuid.uuid4()), nome, tam, c_save, v_save, "Disponível"])
                 st.success("Produto Salvo!")
                 
-                # Limpar campos
                 st.session_state.prod_nome = ""
                 st.session_state.prod_custo = "0,00"
                 st.session_state.prod_venda = "0,00"
