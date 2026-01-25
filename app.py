@@ -9,32 +9,34 @@ import os
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="FL Boutique - Gestão", layout="wide")
 
-# --- FUNÇÕES DE UTILIDADE (CORREÇÃO DE VALORES) ---
+# --- FUNÇÕES DE UTILIDADE ---
 def converter_input_para_float(valor_str):
     """
-    Converte texto do input (Ex: '85,90') para número float (85.90)
+    Converte input do usuário (ex: '1.200,50' ou '85,90') para float python (1200.50 ou 85.90).
     """
     try:
         if not valor_str: return 0.0
-        # Transforma em string, remove R$ e espaços
+        # Remove R$ e espaços
         limpo = str(valor_str).replace("R$", "").replace(" ", "")
         
-        # Se tiver ponto de milhar (ex: 1.000,00), remove o ponto
-        if "," in limpo and "." in limpo:
-            limpo = limpo.replace(".", "")
+        # Se tiver separador de milhar (ponto) e decimal (vírgula)
+        if "." in limpo and "," in limpo:
+            limpo = limpo.replace(".", "") # Remove o ponto de milhar
+            limpo = limpo.replace(",", ".") # Troca a vírgula por ponto
+        elif "," in limpo:
+            # Apenas vírgula decimal
+            limpo = limpo.replace(",", ".")
             
-        # Troca a vírgula por ponto para o Python entender
-        limpo = limpo.replace(",", ".")
         return float(limpo)
     except:
         return 0.0
 
 def format_brl(value):
     """
-    Formata um número (85.9) para visualização brasileira (R$ 85,90)
+    Recebe um float (85.90) e exibe como R$ 85,90
     """
     try:
-        if value is None or value == "": return "R$ 0,00"
+        if value is None or str(value).strip() == "": return "R$ 0,00"
         val_float = float(value)
         return f"R$ {val_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except:
@@ -52,7 +54,6 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
-    # CSS Login
     st.markdown("""
         <style>
         .stTextInput > label {color: #5C3A3B !important;}
@@ -70,27 +71,23 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- ESTILIZAÇÃO CSS (CORREÇÃO MENU LATERAL + MODO ESCURO) ---
+# --- ESTILIZAÇÃO CSS (VISUAL ROSÊ E MENUS CORRIGIDOS) ---
 st.markdown("""
     <style>
     /* 1. FUNDO GERAL CLARO */
     .stApp { background-color: #FDF2F4 !important; }
     
-    /* 2. TEXTOS ESCUROS (Geral) */
+    /* 2. TEXTOS */
     h1, h2, h3, h4, h5, h6, p, span, label, li, .stMarkdown, .stText, th, td, .stMetricLabel { 
         color: #5C3A3B !important; 
     }
     
-    /* 3. MENU LATERAL (Sidebar) - Correção do Fundo Preto */
+    /* 3. MENU LATERAL */
     section[data-testid="stSidebar"] {
-        background-color: #FFF0F5 !important; /* Rosa Claro */
+        background-color: #FFF0F5 !important;
         color: #5C3A3B !important;
     }
-    
-    /* Botões de Rádio (Menu de Navegação) */
-    div[role="radiogroup"] label {
-        color: #5C3A3B !important;
-    }
+    div[role="radiogroup"] label { color: #5C3A3B !important; }
     
     /* 4. INPUTS E CAMPOS (Branco Puro) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
@@ -99,15 +96,16 @@ st.markdown("""
         border-color: #E69496 !important;
     }
     
-    /* 5. SELECTBOX / DROPDOWN (Branco Puro) */
+    /* 5. SELECTBOX / DROPDOWN */
     div[data-baseweb="select"] > div { 
         background-color: #FFFFFF !important; 
         color: #000000 !important; 
         border-color: #E69496 !important; 
     }
     div[data-baseweb="select"] span { color: #000000 !important; }
+    div[data-baseweb="select"] svg { fill: #5C3A3B !important; }
     
-    /* Lista Suspensa (Pop-up) */
+    /* Popover/Lista Suspensa */
     div[data-baseweb="popover"], div[data-baseweb="popover"] > div, ul[data-baseweb="menu"] {
         background-color: #FFFFFF !important;
     }
@@ -116,7 +114,7 @@ st.markdown("""
         background-color: #FFFFFF !important; 
     }
     li[data-baseweb="option"]:hover { 
-        background-color: #FFE4E1 !important; /* Rosa destaque ao passar mouse */
+        background-color: #FFE4E1 !important; 
     }
 
     /* 6. BOTÕES */
@@ -127,10 +125,8 @@ st.markdown("""
     }
     .stButton > button:hover { background-color: #D4787A !important; }
     
-    /* 7. TABELA (DataFrame) */
-    [data-testid="stDataFrame"] { 
-        background-color: #FFFFFF !important; 
-    }
+    /* 7. TABELA */
+    [data-testid="stDataFrame"] { background-color: #FFFFFF !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -231,8 +227,8 @@ def gerar_lancamentos(total, parcelas, forma, cli, origem):
         val = val_parc + dif if i == parcelas-1 else val_parc
         status = "Pago" if (forma in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
         
-        # Converte para string BR (ex: '85,90') para salvar na planilha
-        val_str = f"{val:.2f}".replace('.', ',')
+        # MUDANÇA CRÍTICA: Salva com PONTO (formato float str) na planilha
+        val_str = f"{val:.2f}" 
         
         lancs.append([
             str(uuid.uuid4()),
@@ -268,7 +264,7 @@ if menu == "Dashboard":
     if not df_fin.empty and not df_prod.empty:
         try:
             custo_total = 0
-            # Corrige leitura do banco: remove simbolos e converte para float
+            # Converte tudo para float antes de somar
             for x in df_prod[df_prod['status']=='Disponível']['preco_custo']:
                 custo_total += converter_input_para_float(x)
                 
@@ -283,7 +279,7 @@ if menu == "Dashboard":
                     caixa += converter_input_para_float(row['valor'])
 
             c1, c2, c3 = st.columns(3)
-            # Exibe com formatação BR correta
+            # Exibe formatado BR
             c1.metric("Estoque (Custo)", format_brl(custo_total))
             c2.metric("A Receber", format_brl(receber))
             c3.metric("Em Caixa", format_brl(caixa))
@@ -300,7 +296,6 @@ elif menu == "Venda Direta":
         p_map = {}
         for i, row in disp.iterrows():
             val_float = converter_input_para_float(row['preco_venda'])
-            # Exibe no menu: "Camiseta (R$ 50,00)"
             lbl = f"{row['nome']} - {row['tamanho']} ({format_brl(val_float)})"
             p_map[lbl] = {'id': row['id'], 'val': val_float}
             
@@ -334,7 +329,7 @@ elif menu == "Produtos":
     t1, t2, t3 = st.tabs(["Cadastrar", "Editar", "Excluir"])
     
     with t1:
-        st.info("💡 Dica: Digite o valor com vírgula. Ex: 85,90")
+        st.info("💡 Digite o valor normalmente (Ex: 85,90). O sistema converterá para salvar.")
         with st.form("add"):
             nome = st.text_input("Nome")
             tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"])
@@ -342,28 +337,26 @@ elif menu == "Produtos":
             venda_txt = st.text_input("Venda (R$)", value="0,00")
             
             if st.form_submit_button("Salvar"):
-                # Salva como texto formatado '85,90' para evitar erro de locale
                 c_float = converter_input_para_float(custo_txt)
                 v_float = converter_input_para_float(venda_txt)
                 
-                custo_str = f"{c_float:.2f}".replace('.', ',')
-                venda_str = f"{v_float:.2f}".replace('.', ',')
+                # MUDANÇA CRÍTICA: Salva com PONTO
+                c_save = f"{c_float:.2f}"
+                v_save = f"{v_float:.2f}"
                 
-                append_data("Produtos", [str(uuid.uuid4()), nome, tam, custo_str, venda_str, "Disponível"])
+                append_data("Produtos", [str(uuid.uuid4()), nome, tam, c_save, v_save, "Disponível"])
                 st.success("Produto Salvo!")
                 st.rerun()
 
     df = load_data("Produtos")
     
-    # --- FORMATAÇÃO VISUAL DA TABELA ---
     if not df.empty:
         df_show = df.drop(columns=['id'], errors='ignore').copy()
-        # Aplica a formatação visual R$ em cada célula de preço
+        # Formata para visualização
         if 'preco_custo' in df_show.columns:
             df_show['preco_custo'] = df_show['preco_custo'].apply(lambda x: format_brl(converter_input_para_float(x)))
         if 'preco_venda' in df_show.columns:
             df_show['preco_venda'] = df_show['preco_venda'].apply(lambda x: format_brl(converter_input_para_float(x)))
-            
         st.dataframe(df_show, use_container_width=True)
         
     with t2:
@@ -375,16 +368,17 @@ elif menu == "Produtos":
                 n_nome = st.text_input("Nome", value=row['nome'])
                 n_tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"], index=["PP","P","M","G","GG","Único"].index(row['tamanho']) if row['tamanho'] in ["PP","P","M","G","GG","Único"] else 0)
                 
-                # Preenche o campo de edição com o valor atual formatado
-                val_c_atual = str(row['preco_custo']).replace('.', ',')
-                val_v_atual = str(row['preco_venda']).replace('.', ',')
+                # Mostra o valor atual formatado BR para facilitar edição
+                val_c_atual = format_brl(converter_input_para_float(row['preco_custo'])).replace("R$ ","")
+                val_v_atual = format_brl(converter_input_para_float(row['preco_venda'])).replace("R$ ","")
                 
                 n_custo = st.text_input("Custo", value=val_c_atual)
                 n_venda = st.text_input("Venda", value=val_v_atual)
                 
                 if st.form_submit_button("Atualizar"):
-                    cf = f"{converter_input_para_float(n_custo):.2f}".replace('.',',')
-                    vf = f"{converter_input_para_float(n_venda):.2f}".replace('.',',')
+                    # Converte input para float e depois para string com PONTO para salvar
+                    cf = f"{converter_input_para_float(n_custo):.2f}"
+                    vf = f"{converter_input_para_float(n_venda):.2f}"
                     update_data("Produtos", p_opts[sel], {2:n_nome, 3:n_tam, 4:cf, 5:vf})
                     st.success("Atualizado!")
                     st.rerun()
@@ -514,7 +508,6 @@ elif menu == "Financeiro":
     with t1:
         if not df.empty:
             show = df.drop(columns=['id'], errors='ignore').copy()
-            # Formata a coluna valor para R$ na visualização
             if 'valor' in show.columns:
                 show['valor'] = show['valor'].apply(lambda x: format_brl(converter_input_para_float(x)))
             st.dataframe(show, use_container_width=True)
