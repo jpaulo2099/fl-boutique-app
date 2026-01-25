@@ -65,29 +65,30 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- ESTILIZAÇÃO CSS ---
+# --- ESTILIZAÇÃO CSS (VERSÃO COMPLETA/SEGURA) ---
 st.markdown("""
     <style>
     /* 1. FUNDO GERAL CLARO */
     .stApp { background-color: #FDF2F4 !important; }
     
-    /* 2. TEXTOS */
+    /* 2. TEXTOS E FONTES */
     h1, h2, h3, h4, h5, h6, p, span, label, li, .stMarkdown, .stText, th, td, .stMetricLabel { 
         color: #5C3A3B !important; 
     }
     
-    /* 3. MENU LATERAL */
+    /* 3. MENU LATERAL (Sidebar) */
     section[data-testid="stSidebar"] {
         background-color: #FFF0F5 !important;
         color: #5C3A3B !important;
     }
     div[role="radiogroup"] label { color: #5C3A3B !important; }
     
-    /* 4. INPUTS E CAMPOS (Branco Puro) */
+    /* 4. INPUTS E CAMPOS (Forçando Branco Puro para iPhone) */
     .stTextInput input, .stNumberInput input, .stDateInput input {
         background-color: #FFFFFF !important; 
         color: #000000 !important; 
         border-color: #E69496 !important;
+        caret-color: #000000 !important;
     }
     
     /* 5. SELECTBOX / DROPDOWN */
@@ -99,7 +100,7 @@ st.markdown("""
     div[data-baseweb="select"] span { color: #000000 !important; }
     div[data-baseweb="select"] svg { fill: #5C3A3B !important; }
     
-    /* Popover/Lista Suspensa */
+    /* Popover/Lista Suspensa (Correção Fundo Preto) */
     div[data-baseweb="popover"], div[data-baseweb="popover"] > div, ul[data-baseweb="menu"] {
         background-color: #FFFFFF !important;
     }
@@ -110,6 +111,7 @@ st.markdown("""
     li[data-baseweb="option"]:hover { 
         background-color: #FFE4E1 !important; 
     }
+    li[data-baseweb="option"] div { color: #000000 !important; }
 
     /* 6. BOTÕES */
     .stButton > button { 
@@ -308,14 +310,13 @@ elif menu == "Venda Direta":
         st.divider()
         st.markdown(f"#### Subtotal: {format_brl(subtotal)}")
         
-        # --- LÓGICA DE DESCONTO INTELIGENTE ---
-        # Inicializa session state para guardar valores
+        # --- LÓGICA DE DESCONTO INTELIGENTE CORRIGIDA ---
         if 'venda_subtotal' not in st.session_state or st.session_state.venda_subtotal != subtotal:
-            st.session_state.venda_subtotal = subtotal
+            st.session_state.venda_subtotal = float(subtotal)
             st.session_state.desc_pct = 0.0
-            st.session_state.val_final = subtotal
+            st.session_state.val_final = float(subtotal)
 
-        # Callbacks para cálculo bilateral
+        # Callbacks
         def update_from_pct():
             pct = st.session_state.key_pct
             st.session_state.desc_pct = pct
@@ -330,9 +331,26 @@ elif menu == "Venda Direta":
 
         c_desc_pct, c_val_final = st.columns(2)
         with c_desc_pct:
-            st.number_input("Desconto (%)", 0.0, 100.0, step=1.0, key="key_pct", on_change=update_from_pct, value=st.session_state.desc_pct)
+            # FIX: Convertendo values para float explicitamente para evitar MixedNumericTypesError
+            st.number_input(
+                "Desconto (%)", 
+                min_value=0.0, 
+                max_value=100.0, 
+                step=1.0, 
+                key="key_pct", 
+                on_change=update_from_pct, 
+                value=float(st.session_state.desc_pct)
+            )
         with c_val_final:
-            st.number_input("Valor Final (R$)", 0.0, step=1.0, key="key_val", on_change=update_from_val, value=st.session_state.val_final)
+            st.number_input(
+                "Valor Final (R$)", 
+                min_value=0.0, 
+                step=0.01, # Step decimal para valor monetário
+                key="key_val", 
+                on_change=update_from_val, 
+                value=float(st.session_state.val_final),
+                format="%.2f"
+            )
             
         final = st.session_state.val_final
         # ----------------------------------------
@@ -348,6 +366,11 @@ elif menu == "Venda Direta":
                 for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta"): append_data("Financeiro", l)
                 st.success("Venda Realizada!")
                 st.balloons()
+                # Limpa estado
+                st.session_state.venda_subtotal = 0.0
+                st.session_state.val_final = 0.0
+                st.session_state.desc_pct = 0.0
+                st.rerun()
             else: st.warning("Valor inválido")
 
 elif menu == "Produtos":
@@ -537,7 +560,6 @@ elif menu == "Financeiro":
 
     with t2:
         if not df.empty:
-            # Filtra apenas VENDAS pendentes
             pen = df[(df['status_pagamento']=='Pendente') & (df['tipo']=='Venda')]
             if not pen.empty:
                 opts = {}
@@ -564,15 +586,13 @@ elif menu == "Financeiro":
             if st.form_submit_button("Lançar"):
                 val_float = converter_input_para_float(val_txt)
                 val_save = f"{val_float:.2f}"
-                
-                # Campos extras
                 forma = "Manual"
                 
                 row = [
                     str(uuid.uuid4()),
                     data_mov.strftime("%Y-%m-%d"),
                     data_mov.strftime("%Y-%m-%d"),
-                    tipo, # Venda, Despesa ou Entrada
+                    tipo,
                     desc,
                     val_save,
                     forma,
