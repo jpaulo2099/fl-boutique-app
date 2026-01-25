@@ -65,7 +65,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- ESTILIZAÇÃO CSS (VERSÃO COMPLETA/SEGURA) ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     /* 1. FUNDO GERAL CLARO */
@@ -310,49 +310,51 @@ elif menu == "Venda Direta":
         st.divider()
         st.markdown(f"#### Subtotal: {format_brl(subtotal)}")
         
-        # --- LÓGICA DE DESCONTO INTELIGENTE CORRIGIDA ---
-        if 'venda_subtotal' not in st.session_state or st.session_state.venda_subtotal != subtotal:
-            st.session_state.venda_subtotal = float(subtotal)
-            st.session_state.desc_pct = 0.0
-            st.session_state.val_final = float(subtotal)
+        # --- LÓGICA DE DESCONTO INTELIGENTE V12 ---
+        
+        # 1. Reset se mudar o subtotal (trocou produtos)
+        if 'last_subtotal' not in st.session_state or abs(st.session_state.last_subtotal - subtotal) > 0.01:
+            st.session_state.last_subtotal = float(subtotal)
+            st.session_state.key_pct = 0.0
+            st.session_state.key_val = float(subtotal)
 
-        # Callbacks
-        def update_from_pct():
+        # 2. Callbacks que atualizam a OUTRA chave
+        def update_val_from_pct():
+            # Usuário mexeu na % -> Atualiza o Valor
             pct = st.session_state.key_pct
-            st.session_state.desc_pct = pct
-            if st.session_state.venda_subtotal > 0:
-                st.session_state.val_final = st.session_state.venda_subtotal * (1 - pct/100)
+            new_val = st.session_state.last_subtotal * (1 - pct / 100)
+            st.session_state.key_val = float(f"{new_val:.2f}")
 
-        def update_from_val():
+        def update_pct_from_val():
+            # Usuário mexeu no Valor -> Atualiza a %
             val = st.session_state.key_val
-            st.session_state.val_final = val
-            if st.session_state.venda_subtotal > 0:
-                st.session_state.desc_pct = ((st.session_state.venda_subtotal - val) / st.session_state.venda_subtotal) * 100
+            if st.session_state.last_subtotal > 0:
+                new_pct = ((st.session_state.last_subtotal - val) / st.session_state.last_subtotal) * 100
+                st.session_state.key_pct = float(f"{new_pct:.1f}")
+            else:
+                st.session_state.key_pct = 0.0
 
         c_desc_pct, c_val_final = st.columns(2)
         with c_desc_pct:
-            # FIX: Convertendo values para float explicitamente para evitar MixedNumericTypesError
             st.number_input(
                 "Desconto (%)", 
                 min_value=0.0, 
                 max_value=100.0, 
                 step=1.0, 
-                key="key_pct", 
-                on_change=update_from_pct, 
-                value=float(st.session_state.desc_pct)
+                key="key_pct", # Chave vinculada ao session_state
+                on_change=update_val_from_pct
             )
         with c_val_final:
             st.number_input(
                 "Valor Final (R$)", 
                 min_value=0.0, 
-                step=0.01, # Step decimal para valor monetário
-                key="key_val", 
-                on_change=update_from_val, 
-                value=float(st.session_state.val_final),
+                step=0.01, 
+                key="key_val", # Chave vinculada ao session_state
+                on_change=update_pct_from_val,
                 format="%.2f"
             )
             
-        final = st.session_state.val_final
+        final = st.session_state.key_val
         # ----------------------------------------
 
         st.divider()
@@ -366,10 +368,10 @@ elif menu == "Venda Direta":
                 for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta"): append_data("Financeiro", l)
                 st.success("Venda Realizada!")
                 st.balloons()
-                # Limpa estado
-                st.session_state.venda_subtotal = 0.0
-                st.session_state.val_final = 0.0
-                st.session_state.desc_pct = 0.0
+                # Reset visual forçado
+                st.session_state.last_subtotal = 0.0
+                st.session_state.key_pct = 0.0
+                st.session_state.key_val = 0.0
                 st.rerun()
             else: st.warning("Valor inválido")
 
