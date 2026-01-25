@@ -11,20 +11,16 @@ st.set_page_config(page_title="FL Boutique - Gestão", layout="wide")
 
 # --- FUNÇÕES DE UTILIDADE ---
 def converter_input_para_float(valor_str):
-    """
-    Converte input do usuário (ex: '1.200,50' ou '85,90') para float python (1200.50 ou 85.90).
-    """
+    """Converte '1.200,50' ou '85,90' para float python."""
     try:
         if not valor_str: return 0.0
         # Remove R$ e espaços
         limpo = str(valor_str).replace("R$", "").replace(" ", "")
         
-        # Se tiver separador de milhar (ponto) e decimal (vírgula)
+        # Lógica para tratar ponto e vírgula
         if "." in limpo and "," in limpo:
-            limpo = limpo.replace(".", "") # Remove o ponto de milhar
-            limpo = limpo.replace(",", ".") # Troca a vírgula por ponto
+            limpo = limpo.replace(".", "").replace(",", ".")
         elif "," in limpo:
-            # Apenas vírgula decimal
             limpo = limpo.replace(",", ".")
             
         return float(limpo)
@@ -32,9 +28,7 @@ def converter_input_para_float(valor_str):
         return 0.0
 
 def format_brl(value):
-    """
-    Recebe um float (85.90) e exibe como R$ 85,90
-    """
+    """Exibe float como R$ 1.000,00"""
     try:
         if value is None or str(value).strip() == "": return "R$ 0,00"
         val_float = float(value)
@@ -71,7 +65,7 @@ def check_password():
 if not check_password():
     st.stop()
 
-# --- ESTILIZAÇÃO CSS (VISUAL ROSÊ E MENUS CORRIGIDOS) ---
+# --- ESTILIZAÇÃO CSS ---
 st.markdown("""
     <style>
     /* 1. FUNDO GERAL CLARO */
@@ -227,7 +221,7 @@ def gerar_lancamentos(total, parcelas, forma, cli, origem):
         val = val_parc + dif if i == parcelas-1 else val_parc
         status = "Pago" if (forma in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
         
-        # MUDANÇA CRÍTICA: Salva com PONTO (formato float str) na planilha
+        # Salva com PONTO
         val_str = f"{val:.2f}" 
         
         lancs.append([
@@ -263,32 +257,41 @@ if menu == "Dashboard":
     df_prod = load_data("Produtos")
     if not df_fin.empty and not df_prod.empty:
         try:
+            # ESTOQUE
             custo_total = 0
-            # Converte tudo para float antes de somar
             for x in df_prod[df_prod['status']=='Disponível']['preco_custo']:
                 custo_total += converter_input_para_float(x)
-                
-            receber = 0
-            for idx, row in df_fin.iterrows():
-                if row['tipo'] == 'Venda' and row['status_pagamento'] == 'Pendente':
-                    receber += converter_input_para_float(row['valor'])
             
+            # FINANCEIRO
+            receber = 0
             caixa = 0
+            
             for idx, row in df_fin.iterrows():
+                val = converter_input_para_float(row['valor'])
+                
+                # A Receber (Apenas Vendas Pendentes)
+                if row['tipo'] == 'Venda' and row['status_pagamento'] == 'Pendente':
+                    receber += val
+                
+                # Em Caixa (Entradas Pagas - Saídas Pagas)
                 if row['status_pagamento'] == 'Pago':
-                    caixa += converter_input_para_float(row['valor'])
+                    if row['tipo'] in ['Venda', 'Entrada']: # Dinheiro entrando
+                        caixa += val
+                    elif row['tipo'] == 'Despesa': # Dinheiro saindo
+                        caixa -= val
 
             c1, c2, c3 = st.columns(3)
-            # Exibe formatado BR
             c1.metric("Estoque (Custo)", format_brl(custo_total))
             c2.metric("A Receber", format_brl(receber))
-            c3.metric("Em Caixa", format_brl(caixa))
+            c3.metric("Caixa Atual", format_brl(caixa))
+            
         except Exception as e: st.warning(f"Erro cálculo: {e}")
 
 elif menu == "Venda Direta":
     st.header("🛒 Nova Venda")
     df_cli = load_data("Clientes")
     df_prod = load_data("Produtos")
+    
     if not df_cli.empty and not df_prod.empty:
         cli = st.selectbox("Cliente", df_cli['nome'].unique())
         disp = df_prod[df_prod['status']=='Disponível']
@@ -300,17 +303,40 @@ elif menu == "Venda Direta":
             p_map[lbl] = {'id': row['id'], 'val': val_float}
             
         sels = st.multiselect("Produtos", list(p_map.keys()))
-        
         subtotal = sum([p_map[x]['val'] for x in sels])
         
         st.divider()
-        c_val, c_desc = st.columns(2)
-        with c_val: st.markdown(f"#### Total Peças: {format_brl(subtotal)}")
-        with c_desc:
-            desc_val = st.number_input("Desconto (R$)", 0.0, step=1.0)
-            final = subtotal - desc_val
-            st.markdown(f"### Final: {format_brl(final)}")
+        st.markdown(f"#### Subtotal: {format_brl(subtotal)}")
+        
+        # --- LÓGICA DE DESCONTO INTELIGENTE ---
+        # Inicializa session state para guardar valores
+        if 'venda_subtotal' not in st.session_state or st.session_state.venda_subtotal != subtotal:
+            st.session_state.venda_subtotal = subtotal
+            st.session_state.desc_pct = 0.0
+            st.session_state.val_final = subtotal
+
+        # Callbacks para cálculo bilateral
+        def update_from_pct():
+            pct = st.session_state.key_pct
+            st.session_state.desc_pct = pct
+            if st.session_state.venda_subtotal > 0:
+                st.session_state.val_final = st.session_state.venda_subtotal * (1 - pct/100)
+
+        def update_from_val():
+            val = st.session_state.key_val
+            st.session_state.val_final = val
+            if st.session_state.venda_subtotal > 0:
+                st.session_state.desc_pct = ((st.session_state.venda_subtotal - val) / st.session_state.venda_subtotal) * 100
+
+        c_desc_pct, c_val_final = st.columns(2)
+        with c_desc_pct:
+            st.number_input("Desconto (%)", 0.0, 100.0, step=1.0, key="key_pct", on_change=update_from_pct, value=st.session_state.desc_pct)
+        with c_val_final:
+            st.number_input("Valor Final (R$)", 0.0, step=1.0, key="key_val", on_change=update_from_val, value=st.session_state.val_final)
             
+        final = st.session_state.val_final
+        # ----------------------------------------
+
         st.divider()
         c1, c2 = st.columns(2)
         with c1: forma = st.selectbox("Pagamento", ["Pix", "Dinheiro", "Cartão Crédito", "Cartão Débito"])
@@ -329,7 +355,7 @@ elif menu == "Produtos":
     t1, t2, t3 = st.tabs(["Cadastrar", "Editar", "Excluir"])
     
     with t1:
-        st.info("💡 Digite o valor normalmente (Ex: 85,90). O sistema converterá para salvar.")
+        st.info("💡 Digite o valor normalmente (Ex: 85,90).")
         with st.form("add"):
             nome = st.text_input("Nome")
             tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"])
@@ -340,7 +366,7 @@ elif menu == "Produtos":
                 c_float = converter_input_para_float(custo_txt)
                 v_float = converter_input_para_float(venda_txt)
                 
-                # MUDANÇA CRÍTICA: Salva com PONTO
+                # Salva com PONTO
                 c_save = f"{c_float:.2f}"
                 v_save = f"{v_float:.2f}"
                 
@@ -352,7 +378,6 @@ elif menu == "Produtos":
     
     if not df.empty:
         df_show = df.drop(columns=['id'], errors='ignore').copy()
-        # Formata para visualização
         if 'preco_custo' in df_show.columns:
             df_show['preco_custo'] = df_show['preco_custo'].apply(lambda x: format_brl(converter_input_para_float(x)))
         if 'preco_venda' in df_show.columns:
@@ -368,7 +393,6 @@ elif menu == "Produtos":
                 n_nome = st.text_input("Nome", value=row['nome'])
                 n_tam = st.selectbox("Tamanho", ["PP","P","M","G","GG","Único"], index=["PP","P","M","G","GG","Único"].index(row['tamanho']) if row['tamanho'] in ["PP","P","M","G","GG","Único"] else 0)
                 
-                # Mostra o valor atual formatado BR para facilitar edição
                 val_c_atual = format_brl(converter_input_para_float(row['preco_custo'])).replace("R$ ","")
                 val_v_atual = format_brl(converter_input_para_float(row['preco_venda'])).replace("R$ ","")
                 
@@ -376,7 +400,6 @@ elif menu == "Produtos":
                 n_venda = st.text_input("Venda", value=val_v_atual)
                 
                 if st.form_submit_button("Atualizar"):
-                    # Converte input para float e depois para string com PONTO para salvar
                     cf = f"{converter_input_para_float(n_custo):.2f}"
                     vf = f"{converter_input_para_float(n_venda):.2f}"
                     update_data("Produtos", p_opts[sel], {2:n_nome, 3:n_tam, 4:cf, 5:vf})
@@ -503,7 +526,7 @@ elif menu == "Controle de Malas":
 elif menu == "Financeiro":
     st.header("💰 Finanças")
     df = load_data("Financeiro")
-    t1, t2, t3 = st.tabs(["Extrato", "Receber", "Excluir"])
+    t1, t2, t3, t4 = st.tabs(["Extrato", "Receber", "Novo Lançamento", "Excluir"])
     
     with t1:
         if not df.empty:
@@ -514,7 +537,8 @@ elif menu == "Financeiro":
 
     with t2:
         if not df.empty:
-            pen = df[df['status_pagamento']=='Pendente']
+            # Filtra apenas VENDAS pendentes
+            pen = df[(df['status_pagamento']=='Pendente') & (df['tipo']=='Venda')]
             if not pen.empty:
                 opts = {}
                 for i, r in pen.iterrows():
@@ -527,8 +551,38 @@ elif menu == "Financeiro":
                     st.success("Recebido!")
                     st.rerun()
             else: st.info("Nada pendente.")
-
+            
     with t3:
+        st.subheader("Registrar Despesa ou Entrada")
+        with st.form("manual"):
+            tipo = st.selectbox("Tipo", ["Despesa", "Entrada"])
+            desc = st.text_input("Descrição (Ex: Conta de Luz, Aporte Inicial)")
+            val_txt = st.text_input("Valor (R$)", value="0,00")
+            data_mov = st.date_input("Data", datetime.now())
+            status = st.selectbox("Status", ["Pago", "Pendente"])
+            
+            if st.form_submit_button("Lançar"):
+                val_float = converter_input_para_float(val_txt)
+                val_save = f"{val_float:.2f}"
+                
+                # Campos extras
+                forma = "Manual"
+                
+                row = [
+                    str(uuid.uuid4()),
+                    data_mov.strftime("%Y-%m-%d"),
+                    data_mov.strftime("%Y-%m-%d"),
+                    tipo, # Venda, Despesa ou Entrada
+                    desc,
+                    val_save,
+                    forma,
+                    status
+                ]
+                append_data("Financeiro", row)
+                st.success("Lançamento registrado!")
+                st.rerun()
+
+    with t4:
         if not df.empty:
             opts = {f"{r['descricao']} ({r['valor']})": r['id'] for i,r in df.iterrows()}
             sel = st.selectbox("Apagar Lançamento", list(opts.keys()))
