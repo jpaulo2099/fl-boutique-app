@@ -207,21 +207,17 @@ def update_finance_status(fid, status):
         except: pass
     return False
 
-# --- GERAÇÃO DE LANÇAMENTOS (Com suporte a Data da Venda) ---
 def gerar_lancamentos(total, parcelas, forma, cli, origem, data_base=None, datas_customizadas=None):
     lancs = []
-    # Se não passou data (ex: Mala), usa Hoje. Se passou (Venda Direta), usa a data escolhida.
     hoje = data_base if data_base else datetime.now()
     
     val_parc = round(total/parcelas, 2)
     dif = round(total - (val_parc * parcelas), 2)
     
     for i in range(parcelas):
-        # 1. Tenta usar data customizada do painel
         if datas_customizadas and len(datas_customizadas) > i:
             venc = datas_customizadas[i]
         else:
-            # 2. Se não, calcula com base na Data da Venda (hoje ou passado)
             if parcelas == 1:
                 venc = hoje
             else:
@@ -229,13 +225,12 @@ def gerar_lancamentos(total, parcelas, forma, cli, origem, data_base=None, datas
             
         val = val_parc + dif if i == parcelas-1 else val_parc
         status = "Pago" if (forma in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
-        
         val_str = f"{val:.2f}" 
         
         lancs.append([
             str(uuid.uuid4()),
-            hoje.strftime("%Y-%m-%d"), # Data do Lançamento (Venda)
-            venc.strftime("%Y-%m-%d"), # Data do Vencimento
+            hoje.strftime("%Y-%m-%d"),
+            venc.strftime("%Y-%m-%d"),
             "Venda",
             f"{origem} - {cli} ({i+1}/{parcelas})",
             val_str,
@@ -328,11 +323,8 @@ elif menu == "Venda Direta":
     df_prod = load_data("Produtos")
     
     if not df_cli.empty and not df_prod.empty:
-        
-        # --- SELETOR DE DATA E CLIENTE ---
         c_data, c_cli = st.columns([1, 3])
         with c_data:
-            # Permite escolher data retroativa
             data_venda = st.date_input("Data da Venda", datetime.now())
         with c_cli:
             cli = st.selectbox("Cliente", df_cli['nome'].unique())
@@ -386,25 +378,21 @@ elif menu == "Venda Direta":
         
         datas_escolhidas = []
         with st.expander("📅 Personalizar Datas de Pagamento", expanded=False):
-            st.caption("Datas calculadas a partir da Data da Venda selecionada acima.")
+            st.caption("Datas calculadas a partir da Data da Venda selecionada.")
             cols = st.columns(min(parc, 4))
             for i in range(parc):
-                # Data base é a data_venda selecionada
                 if parc == 1:
                     padrao = data_venda
                 else:
                     padrao = data_venda + timedelta(days=30*(i+1))
-                
                 d = cols[i % 4].date_input(f"Parcela {i+1}", value=padrao, key=f"date_vd_{i}")
                 datas_escolhidas.append(d)
         
         if st.button("Finalizar Venda"):
             if final > 0:
                 for x in sels: update_product_status(p_map[x]['id'], "Vendido")
-                # Passa a data_venda (data_base) e as datas das parcelas
                 for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta", data_base=data_venda, datas_customizadas=datas_escolhidas): 
                     append_data("Financeiro", l)
-                
                 st.success("Venda Realizada!")
                 st.balloons()
                 st.session_state.venda_subtotal = 0.0
@@ -415,6 +403,9 @@ elif menu == "Venda Direta":
 
 elif menu == "Produtos":
     st.header("👗 Produtos")
+    # CORREÇÃO DA VERSÃO 20.0: Carregar dados ANTES de desenhar as abas
+    df = load_data("Produtos")
+    
     t1, t2, t3, t4, t5 = st.tabs(["🆕 Novo Cadastro", "📦 Reposição (Add Qtd)", "📊 Visão de Estoque", "✏️ Editar", "🗑️ Excluir"])
     
     with t1:
@@ -651,6 +642,7 @@ elif menu == "Controle de Malas":
                                 val = converter_input_para_float(df_p[df_p['id']==pid]['preco_venda'].values[0])
                                 tot += val
                         if tot > 0:
+                            # Mala ainda usa datas padrão pois está dentro de form
                             for l in gerar_lancamentos(tot, pa, fp, row['nome_cliente'], "Mala"): append_data("Financeiro", l)
                         
                         update_data("Malas", m_opts[sel], {6: "Finalizada"})
