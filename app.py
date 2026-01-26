@@ -14,15 +14,11 @@ def converter_input_para_float(valor_str):
     """Converte '1.200,50' ou '85,90' para float python."""
     try:
         if not valor_str: return 0.0
-        # Remove R$ e espaços
         limpo = str(valor_str).replace("R$", "").replace(" ", "")
-        
-        # Lógica para tratar ponto e vírgula
         if "." in limpo and "," in limpo:
             limpo = limpo.replace(".", "").replace(",", ".")
         elif "," in limpo:
             limpo = limpo.replace(",", ".")
-            
         return float(limpo)
     except:
         return 0.0
@@ -76,7 +72,7 @@ st.markdown("""
         color: #5C3A3B !important; 
     }
     
-    /* 3. MENU LATERAL (Sidebar) */
+    /* 3. MENU LATERAL */
     section[data-testid="stSidebar"] {
         background-color: #FFF0F5 !important;
         color: #5C3A3B !important;
@@ -99,8 +95,6 @@ st.markdown("""
     }
     div[data-baseweb="select"] span { color: #000000 !important; }
     div[data-baseweb="select"] svg { fill: #5C3A3B !important; }
-    
-    /* Popover/Lista Suspensa */
     div[data-baseweb="popover"], div[data-baseweb="popover"] > div, ul[data-baseweb="menu"] {
         background-color: #FFFFFF !important;
     }
@@ -123,8 +117,6 @@ st.markdown("""
     
     /* 7. TABELA */
     [data-testid="stDataFrame"] { background-color: #FFFFFF !important; }
-    
-    /* 8. BOX DE INFORMAÇÃO */
     .stAlert { background-color: #FFFFFF !important; color: #000000 !important; border: 1px solid #E69496; }
     </style>
     """, unsafe_allow_html=True)
@@ -215,14 +207,26 @@ def update_finance_status(fid, status):
         except: pass
     return False
 
-def gerar_lancamentos(total, parcelas, forma, cli, origem):
+# --- GERAÇÃO DE LANÇAMENTOS (Com suporte a Data da Venda) ---
+def gerar_lancamentos(total, parcelas, forma, cli, origem, data_base=None, datas_customizadas=None):
     lancs = []
-    hoje = datetime.now()
+    # Se não passou data (ex: Mala), usa Hoje. Se passou (Venda Direta), usa a data escolhida.
+    hoje = data_base if data_base else datetime.now()
+    
     val_parc = round(total/parcelas, 2)
     dif = round(total - (val_parc * parcelas), 2)
     
     for i in range(parcelas):
-        venc = hoje if parcelas == 1 else hoje + timedelta(days=30*(i+1))
+        # 1. Tenta usar data customizada do painel
+        if datas_customizadas and len(datas_customizadas) > i:
+            venc = datas_customizadas[i]
+        else:
+            # 2. Se não, calcula com base na Data da Venda (hoje ou passado)
+            if parcelas == 1:
+                venc = hoje
+            else:
+                venc = hoje + timedelta(days=30*(i+1))
+            
         val = val_parc + dif if i == parcelas-1 else val_parc
         status = "Pago" if (forma in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
         
@@ -230,8 +234,8 @@ def gerar_lancamentos(total, parcelas, forma, cli, origem):
         
         lancs.append([
             str(uuid.uuid4()),
-            hoje.strftime("%Y-%m-%d"),
-            venc.strftime("%Y-%m-%d"),
+            hoje.strftime("%Y-%m-%d"), # Data do Lançamento (Venda)
+            venc.strftime("%Y-%m-%d"), # Data do Vencimento
             "Venda",
             f"{origem} - {cli} ({i+1}/{parcelas})",
             val_str,
@@ -324,9 +328,16 @@ elif menu == "Venda Direta":
     df_prod = load_data("Produtos")
     
     if not df_cli.empty and not df_prod.empty:
-        cli = st.selectbox("Cliente", df_cli['nome'].unique())
-        disp = df_prod[df_prod['status']=='Disponível']
         
+        # --- SELETOR DE DATA E CLIENTE ---
+        c_data, c_cli = st.columns([1, 3])
+        with c_data:
+            # Permite escolher data retroativa
+            data_venda = st.date_input("Data da Venda", datetime.now())
+        with c_cli:
+            cli = st.selectbox("Cliente", df_cli['nome'].unique())
+            
+        disp = df_prod[df_prod['status']=='Disponível']
         p_map = {}
         for i, row in disp.iterrows():
             val_float = converter_input_para_float(row['preco_venda'])
@@ -339,7 +350,6 @@ elif menu == "Venda Direta":
         st.divider()
         st.markdown(f"#### Subtotal: {format_brl(subtotal)}")
         
-        # --- DESCONTO BIDIRECIONAL ---
         if 'venda_subtotal' not in st.session_state or st.session_state.venda_subtotal != subtotal:
             st.session_state.venda_subtotal = float(subtotal)
             st.session_state.desc_pct = 0.0
@@ -374,10 +384,27 @@ elif menu == "Venda Direta":
         with c1: forma = st.selectbox("Pagamento", ["Pix", "Dinheiro", "Cartão Crédito", "Cartão Débito"])
         with c2: parc = st.number_input("Parcelas", 1, 12, 1)
         
+        datas_escolhidas = []
+        with st.expander("📅 Personalizar Datas de Pagamento", expanded=False):
+            st.caption("Datas calculadas a partir da Data da Venda selecionada acima.")
+            cols = st.columns(min(parc, 4))
+            for i in range(parc):
+                # Data base é a data_venda selecionada
+                if parc == 1:
+                    padrao = data_venda
+                else:
+                    padrao = data_venda + timedelta(days=30*(i+1))
+                
+                d = cols[i % 4].date_input(f"Parcela {i+1}", value=padrao, key=f"date_vd_{i}")
+                datas_escolhidas.append(d)
+        
         if st.button("Finalizar Venda"):
             if final > 0:
                 for x in sels: update_product_status(p_map[x]['id'], "Vendido")
-                for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta"): append_data("Financeiro", l)
+                # Passa a data_venda (data_base) e as datas das parcelas
+                for l in gerar_lancamentos(final, parc, forma, cli, "Venda Direta", data_base=data_venda, datas_customizadas=datas_escolhidas): 
+                    append_data("Financeiro", l)
+                
                 st.success("Venda Realizada!")
                 st.balloons()
                 st.session_state.venda_subtotal = 0.0
@@ -388,12 +415,10 @@ elif menu == "Venda Direta":
 
 elif menu == "Produtos":
     st.header("👗 Produtos")
-    df = load_data("Produtos")
     t1, t2, t3, t4, t5 = st.tabs(["🆕 Novo Cadastro", "📦 Reposição (Add Qtd)", "📊 Visão de Estoque", "✏️ Editar", "🗑️ Excluir"])
     
-    # --- TAB 1: NOVO CADASTRO (Cria item do zero) ---
     with t1:
-        st.caption("Cadastre um produto que nunca existiu na loja.")
+        st.info("💡 Dica: Digite o Custo e aperte 'Enter' para ver a Sugestão de Preço.")
         
         if "prod_nome" not in st.session_state: st.session_state.prod_nome = ""
         if "prod_custo" not in st.session_state: st.session_state.prod_custo = "0,00"
@@ -445,32 +470,22 @@ elif menu == "Produtos":
             else:
                 st.warning("Preencha o nome.")
 
-    # --- TAB 2: REPOSIÇÃO (Adiciona qtd a item existente) ---
     with t2:
         st.caption("Selecione um produto existente para adicionar mais peças ao estoque.")
         if not df.empty:
-            # Cria lista de opções únicas (Nome + Tamanho)
             unique_opts = df[['nome', 'tamanho', 'preco_custo', 'preco_venda']].drop_duplicates(subset=['nome', 'tamanho'])
-            
-            # Dicionário para lookup
             opt_map = {}
             for i, row in unique_opts.iterrows():
                 label = f"{row['nome']} - {row['tamanho']}"
                 opt_map[label] = row
             
             sel_repo = st.selectbox("Selecione o Produto", list(opt_map.keys()))
-            
-            # Pega dados do selecionado para preencher
             dados_repo = opt_map[sel_repo]
             
             st.divider()
-            st.text("Confira os valores para este novo lote:")
-            
-            # Valores pré-preenchidos (convertidos para BR)
             c_pre = format_brl(converter_input_para_float(dados_repo['preco_custo'])).replace("R$ ","")
             v_pre = format_brl(converter_input_para_float(dados_repo['preco_venda'])).replace("R$ ","")
             
-            # Permite editar se o preço mudou no novo lote
             c_repo = st.text_input("Custo (R$)", value=c_pre, key="custo_repo")
             v_repo = st.text_input("Venda (R$)", value=v_pre, key="venda_repo")
             q_repo = st.number_input("Quantidade a Adicionar", min_value=1, value=1, key="qtd_repo")
@@ -484,7 +499,6 @@ elif menu == "Produtos":
                 conn = get_connection()
                 if conn:
                     ws = conn.worksheet("Produtos")
-                    # Cria novas linhas com os mesmos dados básicos, mas novo ID
                     rows = [[str(uuid.uuid4()), dados_repo['nome'], dados_repo['tamanho'], c_save, v_save, "Disponível"] for _ in range(q_repo)]
                     for r in rows: ws.append_row(r)
                     st.cache_data.clear()
@@ -494,7 +508,6 @@ elif menu == "Produtos":
         else:
             st.info("Cadastre produtos na aba 'Novo Cadastro' primeiro.")
 
-    # --- TAB 3: VISÃO DE ESTOQUE (Agrupada) ---
     with t3:
         st.subheader("📦 Visão Consolidada")
         if not df.empty:
@@ -507,7 +520,6 @@ elif menu == "Produtos":
         else:
             st.info("Sem dados.")
 
-    # --- TAB 4: EDITAR (Item a Item) ---
     with t4:
         if not df.empty:
             p_opts = {f"{row['nome']} - {row['tamanho']}": row['id'] for i, row in df.iterrows()}
@@ -530,7 +542,6 @@ elif menu == "Produtos":
                     st.success("Atualizado!")
                     st.rerun()
 
-    # --- TAB 5: EXCLUIR ---
     with t5:
         if not df.empty:
             sel_del = st.selectbox("Excluir qual?", list(p_opts.keys()), key='del_p')
@@ -540,7 +551,6 @@ elif menu == "Produtos":
                 st.rerun()
     
     st.divider()
-    st.caption("Lista completa de registros individuais (banco de dados):")
     if not df.empty:
         df_show = df.drop(columns=['id'], errors='ignore').copy()
         if 'preco_custo' in df_show.columns:
