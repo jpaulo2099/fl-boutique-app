@@ -230,7 +230,7 @@ with c1:
     else: st.write("👜")
 with c2:
     st.title("FL Boutique")
-    st.caption("Sistema de Gestão v23.0")
+    st.caption("Sistema de Gestão v24.0")
 
 def check_password():
     def password_entered():
@@ -513,8 +513,6 @@ elif menu == "Controle de Malas":
                 dp = df_p[df_p['status']=='Disponível']
                 pm = {f"{r['nome']} {r['tamanho']}": r['id'] for i,r in dp.iterrows()}
                 sl = st.multiselect("Peças", list(pm.keys()))
-                
-                # DATA DE RETORNO VISÍVEL E EDITÁVEL
                 dt_prev = st.date_input("Previsão de Retorno", datetime.now() + timedelta(days=3))
                 
                 if st.form_submit_button("Enviar Mala"):
@@ -522,8 +520,6 @@ elif menu == "Controle de Malas":
                     cid = df_c[df_c['nome']==cl]['id'].values[0]
                     upd = {pm[x]: "Em Mala" for x in sl}
                     update_product_status_batch(upd)
-                    
-                    # Salva Data Prevista na coluna 7
                     append_data("Malas", [str(uuid.uuid4()), cid, cl, datetime.now().strftime("%Y-%m-%d"), ids, "Aberta", dt_prev.strftime("%Y-%m-%d")])
                     st.success("Mala Enviada!")
                     st.rerun()
@@ -533,12 +529,9 @@ elif menu == "Controle de Malas":
         if not df_m.empty and 'status' in df_m.columns:
             abs = df_m[df_m['status']=='Aberta']
             if not abs.empty:
-                # VISUALIZAÇÃO MELHORADA: DATA ENVIO E PREVISÃO
                 m_op = {}
                 for i, r in abs.iterrows():
-                    # Tenta ler coluna da data prevista (índice 6 ou nome '6' se sem header)
                     d_prev = r['6'] if '6' in r else (r.values[6] if len(r.values) > 6 else "-")
-                    
                     lbl = f"{r['nome_cliente']} | Envio: {format_data_br(r['data_envio'])} | Prev: {format_data_br(d_prev)}"
                     m_op[lbl] = r['id']
 
@@ -546,37 +539,56 @@ elif menu == "Controle de Malas":
                 row = abs[abs['id']==m_op[sel]].iloc[0]
                 lids = str(row['lista_ids_produtos']).split(',')
                 
-                st.write(f"Peças com: **{row['nome_cliente']}**")
-                with st.form("mal_ret"):
-                    devs = {}
-                    for pid in lids:
-                        pi = df_p[df_p['id']==pid]
-                        if not pi.empty:
-                            v = format_brl(converter_input_para_float(pi['preco_venda'].values[0]))
-                            devs[pid] = st.checkbox(f"DEVOLVEU: {pi['nome'].values[0]} ({v})", True, key=pid)
-                    
-                    st.divider()
-                    c1, c2 = st.columns(2)
-                    with c1: fp = st.selectbox("Pagamento", ["Pix","Dinheiro","Cartão"])
-                    with c2: pa = st.number_input("Parcelas", 1, 12, 1)
-                    
-                    if st.form_submit_button("Processar Retorno"):
-                        upd = {}
-                        tot = 0
-                        for pid, dev in devs.items():
-                            val = converter_input_para_float(df_p[df_p['id']==pid]['preco_venda'].values[0])
-                            if dev: upd[pid] = "Disponível"
-                            else: 
-                                upd[pid] = "Vendido"
-                                tot += val
+                st.markdown(f"### 👜 Mala de: {row['nome_cliente']}")
+                st.caption("Desmarque os itens que a cliente COMPROU (ficou com ela).")
+                
+                # --- LÓGICA DE CÁLCULO EM TEMPO REAL (SEM FORM) ---
+                devs = {}
+                total_mala = 0.0
+                total_pagar = 0.0
+                
+                for pid in lids:
+                    pi = df_p[df_p['id']==pid]
+                    if not pi.empty:
+                        val = converter_input_para_float(pi['preco_venda'].values[0])
+                        val_fmt = format_brl(val)
+                        nome = pi['nome'].values[0]
+                        total_mala += val
                         
-                        if update_product_status_batch(upd):
-                            if tot > 0:
-                                for l in gerar_lancamentos(tot, pa, fp, row['nome_cliente'], "Mala"): append_data("Financeiro", l)
-                            update_data("Malas", m_op[sel], {6: "Finalizada"})
-                            st.success("Mala Finalizada!")
-                            time.sleep(1)
-                            st.rerun()
+                        # O padrão é marcado (Devolveu). Se desmarcar, soma no pagar.
+                        is_ret = st.checkbox(f"DEVOLVEU: {nome} ({val_fmt})", True, key=pid)
+                        devs[pid] = is_ret
+                        
+                        if not is_ret:
+                            total_pagar += val
+                
+                st.divider()
+                c_tot1, c_tot2 = st.columns(2)
+                c_tot1.metric("🎒 Valor da Mala", format_brl(total_mala))
+                c_tot2.metric("💸 Valor a Pagar", format_brl(total_pagar))
+                st.divider()
+                
+                c1, c2 = st.columns(2)
+                with c1: fp = st.selectbox("Pagamento", ["Pix","Dinheiro","Cartão"])
+                with c2: pa = st.number_input("Parcelas", 1, 12, 1)
+                
+                if st.button("Processar Retorno"):
+                    upd = {}
+                    tot = 0
+                    for pid, dev in devs.items():
+                        val = converter_input_para_float(df_p[df_p['id']==pid]['preco_venda'].values[0])
+                        if dev: upd[pid] = "Disponível"
+                        else: 
+                            upd[pid] = "Vendido"
+                            tot += val
+                    
+                    if update_product_status_batch(upd):
+                        if tot > 0:
+                            for l in gerar_lancamentos(tot, pa, fp, row['nome_cliente'], "Mala"): append_data("Financeiro", l)
+                        update_data("Malas", m_op[sel], {6: "Finalizada"})
+                        st.success("Mala Finalizada!")
+                        time.sleep(1.5)
+                        st.rerun()
 
     with t3:
         if not df_m.empty:
