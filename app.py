@@ -229,8 +229,8 @@ with c1:
     if os.path.exists("logo.png"): st.image("logo.png", width=80)
     else: st.write("👜")
 with c2:
-    st.title("FL Boutique")
-    st.caption("Sistema de Gestão v25.0")
+    st.title("FL Boutique Moda Cristã")
+    st.caption("Sistema de Gestão v1.25")
 
 def check_password():
     def password_entered():
