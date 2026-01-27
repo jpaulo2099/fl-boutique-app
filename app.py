@@ -230,7 +230,7 @@ with c1:
     else: st.write("👜")
 with c2:
     st.title("FL Boutique")
-    st.caption("Sistema de Gestão v24.0")
+    st.caption("Sistema de Gestão v25.0")
 
 def check_password():
     def password_entered():
@@ -488,7 +488,7 @@ elif menu == "Clientes":
                 nn = st.text_input("Nome", row['nome'])
                 nw = st.text_input("Zap", row['whatsapp'])
                 ne = st.text_input("End", row['endereco'])
-                if st.form_submit_button("Salvar"):
+                if st.form_submit_button("Atualizar"):
                     update_data("Clientes", copts[sel], {2:nn, 3:nw, 4:ne})
                     st.success("Ok!")
                     st.rerun()
@@ -542,7 +542,6 @@ elif menu == "Controle de Malas":
                 st.markdown(f"### 👜 Mala de: {row['nome_cliente']}")
                 st.caption("Desmarque os itens que a cliente COMPROU (ficou com ela).")
                 
-                # --- LÓGICA DE CÁLCULO EM TEMPO REAL (SEM FORM) ---
                 devs = {}
                 total_mala = 0.0
                 total_pagar = 0.0
@@ -554,13 +553,9 @@ elif menu == "Controle de Malas":
                         val_fmt = format_brl(val)
                         nome = pi['nome'].values[0]
                         total_mala += val
-                        
-                        # O padrão é marcado (Devolveu). Se desmarcar, soma no pagar.
                         is_ret = st.checkbox(f"DEVOLVEU: {nome} ({val_fmt})", True, key=pid)
                         devs[pid] = is_ret
-                        
-                        if not is_ret:
-                            total_pagar += val
+                        if not is_ret: total_pagar += val
                 
                 st.divider()
                 c_tot1, c_tot2 = st.columns(2)
@@ -571,6 +566,15 @@ elif menu == "Controle de Malas":
                 c1, c2 = st.columns(2)
                 with c1: fp = st.selectbox("Pagamento", ["Pix","Dinheiro","Cartão"])
                 with c2: pa = st.number_input("Parcelas", 1, 12, 1)
+                
+                # --- DATAS CUSTOMIZADAS (NOVO) ---
+                datas_mala = []
+                with st.expander("📅 Datas de Pagamento", expanded=False):
+                    cols = st.columns(min(pa, 4))
+                    for i in range(pa):
+                        padrao = datetime.now() if pa == 1 else datetime.now() + timedelta(days=30*(i+1))
+                        d = cols[i % 4].date_input(f"P{i+1}", value=padrao, key=f"dm_{i}")
+                        datas_mala.append(d)
                 
                 if st.button("Processar Retorno"):
                     upd = {}
@@ -584,7 +588,9 @@ elif menu == "Controle de Malas":
                     
                     if update_product_status_batch(upd):
                         if tot > 0:
-                            for l in gerar_lancamentos(tot, pa, fp, row['nome_cliente'], "Mala"): append_data("Financeiro", l)
+                            # Passa datas personalizadas para a função
+                            for l in gerar_lancamentos(tot, pa, fp, row['nome_cliente'], "Mala", datas_customizadas=datas_mala): 
+                                append_data("Financeiro", l)
                         update_data("Malas", m_op[sel], {6: "Finalizada"})
                         st.success("Mala Finalizada!")
                         time.sleep(1.5)
