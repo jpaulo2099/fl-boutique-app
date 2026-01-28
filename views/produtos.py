@@ -22,8 +22,9 @@ def show_produtos():
                 st.info(f"💰 Sugestão: {ut.format_brl(sug)}")
                 if st.button("Usar Sugestão"): st.session_state.p_ven = f"{sug:.2f}".replace('.', ',')
 
-        venda = st.text_input("Venda (R$)", key="p_ven", value="0,00")
-        qtd = st.number_input("Qtd Peças", 1, value=1, key="p_qtd")
+                venda = st.text_input("Venda (R$)", key="p_ven")
+
+                qtd = st.number_input("Qtd Peças", 1, value=1, key="p_qtd")
         
         if st.button("Salvar Produto"):
             if nome:

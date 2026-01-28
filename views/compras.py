@@ -31,8 +31,8 @@ def show_compras():
                 if c_val > 0:
                     # Fórmula da precificação
                     sugestao_val = (c_val + 1.06) * 2 * 1.12
-                    st.caption(f"💡 Sugestão: {ut.format_brl(sugestao_val)}")
-                    
+                    st.info(f"💡 Sugestão: {ut.format_brl(sugestao_val)}")
+
                     # Botão para aplicar a sugestão
                     if st.button("Usar Sugestão", key="btn_use_sug"):
                         st.session_state.c_venda = f"{sugestao_val:.2f}".replace('.', ',')
