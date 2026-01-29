@@ -217,3 +217,34 @@ def save_configs(novos_valores):
             st.error(f"Erro ao salvar configs: {e}")
             return False
     return False
+
+
+
+def confirmar_recebimento(id_registro, valor_final):
+    """
+    Busca o registro pelo ID e atualiza:
+    - Valor -> para o valor_final informado (pode ser diferente do original)
+    - Status -> para 'Pago'
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            ws = conn.worksheet("Financeiro")
+            cell = ws.find(id_registro)
+            
+            if cell:
+                # Atualiza Coluna 6 (Valor) e Coluna 8 (Status)
+                # Nota: Verifique se na sua planilha 'Valor' é a coluna F (6) e 'Status' é a H (8)
+                # Se a ordem for diferente, ajuste os índices abaixo (cell.row, numero_coluna)
+                
+                # Atualiza Valor
+                ws.update_cell(cell.row, 6, valor_final)
+                # Atualiza Status
+                ws.update_cell(cell.row, 8, "Pago")
+                
+                st.cache_data.clear()
+                return True
+        except Exception as e:
+            st.error(f"Erro ao confirmar recebimento: {e}")
+            return False
+    return False
