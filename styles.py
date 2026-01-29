@@ -88,16 +88,29 @@ def apply_custom_style():
              padding-top: 5px !important;
         }
 	/* --- CORREÇÃO DO DROPDOWN (MODO ESCURO IPHONE) --- */
+        /* --- CORREÇÃO AGRESSIVA PARA MOBILE/IOS --- */
         
-        /* Força o fundo do menu suspenso (popover) a ser branco */
-        div[data-baseweb="popover"], div[data-baseweb="menu"] {
+        /* Força fundo branco em todos os menus suspensos e popovers */
+        div[data-baseweb="popover"], 
+        div[data-baseweb="menu"],
+        div[role="listbox"],
+        ul[role="listbox"] {
             background-color: #FFFFFF !important;
         }
-        
-        /* Força o texto das opções a ser escuro e o fundo branco */
-        li[data-baseweb="option"] {
+
+        /* Força a cor do texto das opções para cinza escuro */
+        li[role="option"],
+        li[data-baseweb="option"],
+        div[data-baseweb="select"] span {
+            color: #4A4A4A !important; 
+            background-color: #FFFFFF !important;
+        }
+
+        /* Remove o fundo preto nativo do iOS em selects */
+        select {
             background-color: #FFFFFF !important;
             color: #4A4A4A !important;
+            -webkit-appearance: none;
         }
         
         /* Ajusta a cor quando passa o mouse ou seleciona (Hover) */
