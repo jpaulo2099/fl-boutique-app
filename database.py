@@ -111,3 +111,109 @@ def update_product_status_batch(updates_dict):
         except Exception as e:
             st.error(f"Erro lote: {e}")
             return False
+
+def get_meses_fechados():
+    """Retorna uma lista de strings 'YYYY-MM' que estão fechados."""
+    conn = get_connection()
+    if conn:
+        try:
+            ws = conn.worksheet("Fechamentos")
+            records = ws.get_all_records()
+            # Retorna apenas os que estão com status 'Fechado'
+            return [r['mes_ano'] for r in records if r['status'] == 'Fechado']
+        except:
+            return []
+    return []
+
+def alternar_fechamento_mes(mes_ano, acao):
+    """
+    acao: 'Fechar' ou 'Reabrir'
+    mes_ano: '2025-01'
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            ws = conn.worksheet("Fechamentos")
+            cell = ws.find(mes_ano)
+            
+            if cell:
+                # Se já existe, atualiza
+                status = "Fechado" if acao == 'Fechar' else "Aberto"
+                ws.update_cell(cell.row, 2, status)
+            else:
+                # Se não existe e quer fechar, cria
+                if acao == 'Fechar':
+                    ws.append_row([mes_ano, "Fechado"])
+            
+            st.cache_data.clear()
+            return True
+        except Exception as e:
+            st.error(f"Erro ao atualizar fechamento: {e}")
+            return False
+    return False
+
+def is_mes_fechado(data_verificacao):
+    """
+    Recebe datetime ou string 'YYYY-MM-DD'.
+    Retorna True se o mês estiver fechado (Bloqueado).
+    Retorna False se estiver aberto (Permitido).
+    """
+    try:
+        # Garante que temos uma string YYYY-MM
+        str_data = str(data_verificacao)
+        mes_ano = str_data[:7] # Pega "2025-01"
+        
+        fechados = get_meses_fechados()
+        if mes_ano in fechados:
+            return True
+        return False
+    except:
+        return False
+
+# --- CONFIGURAÇÕES DO SISTEMA ---
+
+def get_configs():
+    """
+    Retorna um dicionário com as configs. 
+    Ex: {'taxa_cartao': 12.0, 'markup': 2.0}
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            ws = conn.worksheet("Configuracoes")
+            records = ws.get_all_records()
+            # Converte lista de dicts [{'parametro': 'x', 'valor': 1}] em dict {x: 1}
+            config_dict = {}
+            for r in records:
+                try:
+                    config_dict[r['parametro']] = float(str(r['valor']).replace(',', '.'))
+                except:
+                    config_dict[r['parametro']] = 0.0
+            return config_dict
+        except:
+            return {}
+    return {}
+
+def save_configs(novos_valores):
+    """
+    Recebe dict {'taxa_cartao': 10} e salva na planilha.
+    Por segurança, apaga tudo e reescreve para manter a ordem.
+    """
+    conn = get_connection()
+    if conn:
+        try:
+            ws = conn.worksheet("Configuracoes")
+            ws.clear()
+            ws.append_row(["parametro", "valor"]) # Cabeçalho
+            
+            rows = []
+            for k, v in novos_valores.items():
+                rows.append([k, v])
+            
+            ws.append_rows(rows)
+            st.cache_data.clear()
+            return True
+        except Exception as e:
+            st.error(f"Erro ao salvar configs: {e}")
+            return False
+    return False

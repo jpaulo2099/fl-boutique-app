@@ -87,5 +87,23 @@ def apply_custom_style():
              padding-bottom: 10px !important;
              padding-top: 5px !important;
         }
+	/* --- CORREÇÃO DO DROPDOWN (MODO ESCURO IPHONE) --- */
+        
+        /* Força o fundo do menu suspenso (popover) a ser branco */
+        div[data-baseweb="popover"], div[data-baseweb="menu"] {
+            background-color: #FFFFFF !important;
+        }
+        
+        /* Força o texto das opções a ser escuro e o fundo branco */
+        li[data-baseweb="option"] {
+            background-color: #FFFFFF !important;
+            color: #4A4A4A !important;
+        }
+        
+        /* Ajusta a cor quando passa o mouse ou seleciona (Hover) */
+        li[data-baseweb="option"]:hover, li[data-baseweb="option"][aria-selected="true"] {
+            background-color: #FDF2F4 !important; /* Rosê bem clarinho */
+            color: #5C3A3B !important;
+        }
         </style>
     """, unsafe_allow_html=True)

@@ -18,7 +18,7 @@ def show_produtos():
         if custo and custo != "0,00":
             c_val = ut.converter_input_para_float(custo)
             if c_val > 0:
-                sug = (c_val + 1.06) * 2 * 1.12
+                sug = ut.calcular_preco_sugerido(c_val)
                 st.info(f"💰 Sugestão: {ut.format_brl(sug)}")
                 if st.button("Usar Sugestão"): st.session_state.p_ven = f"{sug:.2f}".replace('.', ',')
 

@@ -1,3 +1,4 @@
+import database as db
 import uuid
 from datetime import datetime, timedelta
 
@@ -66,3 +67,22 @@ def gerar_lancamentos(total, parcelas, forma, entidade, origem_texto, data_base=
             status_padrao
         ])
     return lancs
+
+def calcular_preco_sugerido(custo_produto):
+    """
+    Calcula o preço de venda sugerido baseando-se nas configs do banco.
+    Fórmula: (Custo + Custo_Fixo) * Markup * Taxa_Extra
+    """
+    try:
+        if custo_produto <= 0: return 0.0
+        
+        # Pega do banco (ou usa padrão se falhar)
+        conf = db.get_configs()
+        c_fixo = conf.get('custo_fixo', 1.06)
+        markup = conf.get('markup', 2.0)
+        t_extra = conf.get('taxa_extra', 1.12)
+        
+        sugestao = (custo_produto + c_fixo) * markup * t_extra
+        return round(sugestao, 2)
+    except:
+        return 0.0

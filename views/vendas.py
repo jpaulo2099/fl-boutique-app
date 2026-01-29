@@ -66,19 +66,26 @@ def show_venda_direta():
                 # DATA FORMATADA NOS INPUTS DE PARCELA
                 d = cols[i % 4].date_input(f"P{i+1}", value=padrao, key=f"d_vd_{i}", format="DD/MM/YYYY")
                 datas_escolhidas.append(d)
+
+        # Antes do botão "Finalizar Venda", verifique a data:
+        mes_bloqueado = db.is_mes_fechado(data_venda)
         
-        if st.button("Finalizar Venda"):
-            if final > 0:
-                updates = {p_map[x]['id']: "Vendido" for x in sels}
-                db.update_product_status_batch(updates)
-                for l in ut.gerar_lancamentos(final, parc, forma, cli, "Venda Direta", data_venda, datas_escolhidas): 
-                    db.append_data("Financeiro", l)
+        if mes_bloqueado:
+            st.error(f"⛔ O mês de {data_venda.strftime('%m/%Y')} está FECHADO. Não é possível realizar vendas nesta data.")
+        else:
+            # Só mostra o botão se o mês estiver aberto
+            if st.button("Finalizar Venda"):
+                if final > 0:
+                    updates = {p_map[x]['id']: "Vendido" for x in sels}
+                    db.update_product_status_batch(updates)
+                    for l in ut.gerar_lancamentos(final, parc, forma, cli, "Venda Direta", data_venda, datas_escolhidas): 
+                        db.append_data("Financeiro", l)
                 
-                st.success("Venda Realizada!")
-                st.session_state.venda_subtotal = 0.0
-                st.session_state.key_pct = 0.0
-                st.session_state.key_val = 0.0
-                time.sleep(1.5)
-                st.rerun()
-            else: st.warning("Valor inválido")
+                    st.success("Venda Realizada!")
+                    st.session_state.venda_subtotal = 0.0
+                    st.session_state.key_pct = 0.0
+                    st.session_state.key_val = 0.0
+                    time.sleep(1.5)
+                    st.rerun()
+                else: st.warning("Valor inválido")
 

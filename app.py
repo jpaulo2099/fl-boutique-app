@@ -5,7 +5,7 @@ from datetime import datetime
 
 # --- IMPORTS DOS NOVOS MÓDULOS ---
 # O Streamlit adiciona a raiz ao PATH, então isso funciona:
-from views import dashboard, vendas, compras, malas, produtos, clientes, financeiro, relatorios
+from views import dashboard, vendas, compras, malas, produtos, clientes, financeiro, relatorios, fechamento, configuracoes
 
 # --- CONFIGURAÇÃO INICIAL ---
 st.set_page_config(page_title="FL Boutique - Gestão", layout="wide")
@@ -15,26 +15,33 @@ styles.apply_custom_style()
 
 # --- LOGIN ---
 def check_password():
+    """Retorna True se o usuário estiver logado corretamente."""
+    
     def password_entered():
-        if st.session_state["password"] == st.secrets["passwords"]["acesso_loja"]:
+        # CORREÇÃO: Usamos .get() para evitar o KeyError se a chave não existir
+        senha_digitada = st.session_state.get("password", "")
+        
+        if senha_digitada == st.secrets["passwords"]["acesso_loja"]:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]
+            # Em vez de deletar a chave (que causa erro), apenas limpamos o valor
+            st.session_state["password"] = ""  
         else:
             st.session_state["password_correct"] = False
     
+    # Se já estiver logado, retorna True direto
     if st.session_state.get("password_correct", False):
         return True
 
+    # Se não estiver logado, mostra a tela de login
     c1, c2, c3 = st.columns([1,2,1])
     with c2:
         st.title("🔒 Acesso Restrito")
         st.text_input("Senha", type="password", on_change=password_entered, key="password")
-        if "password_correct" in st.session_state:
+        
+        if "password_correct" in st.session_state and not st.session_state["password_correct"]:
             st.error("😕 Senha incorreta.")
+            
     return False
-
-if not check_password():
-    st.stop()
 
 # --- SIDEBAR E NAVEGAÇÃO ---
 with st.sidebar:
@@ -48,15 +55,17 @@ with st.sidebar:
     
     menu = st.radio("Navegação", [
         "Dashboard", 
-	"Relatórios Avançados",
+        "Relatórios Avançados",
         "Venda Direta", 
         "Pedido de Compra", 
         "Controle de Malas", 
         "Produtos", 
         "Clientes", 
-        "Financeiro"
+        "Financeiro",
+        "Fechamento de Mês",
+        "Configurações"
     ])
-    
+
     st.divider()
     if st.button("Sair"):
         st.session_state["password_correct"] = False
@@ -79,3 +88,7 @@ elif menu == "Clientes":
     clientes.show_clientes()
 elif menu == "Financeiro":
     financeiro.show_financeiro()
+elif menu == "Fechamento de Mês":
+    fechamento.show_fechamento()
+elif menu == "Configurações":
+    configuracoes.show_configuracoes()

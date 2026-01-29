@@ -30,7 +30,7 @@ def show_compras():
                 c_val = ut.converter_input_para_float(custo_txt)
                 if c_val > 0:
                     # Fórmula da precificação
-                    sugestao_val = (c_val + 1.06) * 2 * 1.12
+                    sugestao_val = ut.calcular_preco_sugerido(c_val)
                     st.info(f"💡 Sugestão: {ut.format_brl(sugestao_val)}")
 
                     # Botão para aplicar a sugestão
@@ -116,48 +116,56 @@ def show_compras():
                 datas_compra.append(d)
 
         st.write("")
-        if st.button("✅ Finalizar Compra e Atualizar Estoque", type="primary"):
-            if fornecedor:
-                # 1. GERAR LISTA DE PRODUTOS PARA O BANCO
-                novos_produtos = []
-                for item in st.session_state.carrinho_compra:
-                    c_save = f"{item['custo']:.2f}"
-                    v_save = f"{item['venda']:.2f}"
-                    # Cria N linhas para N quantidades
-                    for _ in range(item['qtd']):
-                        novos_produtos.append([
-                            str(uuid.uuid4()), 
-                            item['nome'], 
-                            item['tamanho'], 
-                            c_save, 
-                            v_save, 
-                            "Disponível"
-                        ])
-                
-                # 2. SALVAR PRODUTOS EM LOTE
-                if db.append_data_batch("Produtos", novos_produtos):
+
+        # Alterado de 'data_venda' para 'data_compra' para bater com a variável acima
+        mes_bloqueado = db.is_mes_fechado(data_compra)
+        
+        if mes_bloqueado:
+            st.error(f"⛔ O mês de {data_compra.strftime('%m/%Y')} está FECHADO. Não é possível realizar compras nesta data.")
+        else:
+            # Só mostra o botão se o mês estiver aberto
+            if st.button("✅ Finalizar Compra e Atualizar Estoque", type="primary"):
+                if fornecedor:
+                    # 1. GERAR LISTA DE PRODUTOS PARA O BANCO
+                    novos_produtos = []
+                    for item in st.session_state.carrinho_compra:
+                        c_save = f"{item['custo']:.2f}"
+                        v_save = f"{item['venda']:.2f}"
+                        # Cria N linhas para N quantidades
+                        for _ in range(item['qtd']):
+                            novos_produtos.append([
+                                str(uuid.uuid4()), 
+                                item['nome'], 
+                                item['tamanho'], 
+                                c_save, 
+                                v_save, 
+                                "Disponível"
+                            ])
                     
-                    # 3. GERAR FINANCEIRO COM DATAS PERSONALIZADAS
-                    lancs = ut.gerar_lancamentos(
-                        total=total_pedido, 
-                        parcelas=parc, 
-                        forma=forma, 
-                        cli=fornecedor, 
-                        origem_texto="Compra Estoque", 
-                        data_base=data_compra,
-                        datas_customizadas=datas_compra, # Passando as datas escolhidas
-                        tipo="Despesa"
-                    )
-                    
-                    db.append_data_batch("Financeiro", lancs)
-                    
-                    st.success(f"Sucesso! {qtd_total_pecas} peças cadastradas e Despesa de {ut.format_brl(total_pedido)} lançada.")
-                    st.session_state.carrinho_compra = []
-                    time.sleep(2)
-                    st.rerun()
+                    # 2. SALVAR PRODUTOS EM LOTE
+                    if db.append_data_batch("Produtos", novos_produtos):
+                        
+                        # 3. GERAR FINANCEIRO COM DATAS PERSONALIZADAS
+                        lancs = ut.gerar_lancamentos(
+                            total=total_pedido, 
+                            parcelas=parc, 
+                            forma=forma, 
+                            cli=fornecedor, 
+                            origem_texto="Compra Estoque", 
+                            data_base=data_compra,
+                            datas_customizadas=datas_compra, # Passando as datas escolhidas
+                            tipo="Despesa"
+                        )
+                        
+                        db.append_data_batch("Financeiro", lancs)
+                        
+                        st.success(f"Sucesso! {qtd_total_pecas} peças cadastradas e Despesa de {ut.format_brl(total_pedido)} lançada.")
+                        st.session_state.carrinho_compra = []
+                        time.sleep(2)
+                        st.rerun()
+                    else:
+                        st.error("Erro ao salvar produtos. Tente novamente.")
                 else:
-                    st.error("Erro ao salvar produtos. Tente novamente.")
-            else:
-                st.warning("Informe o Fornecedor antes de finalizar.")
+                    st.warning("Informe o Fornecedor antes de finalizar.")
     else:
         st.info("Adicione itens acima para iniciar o pedido.")
