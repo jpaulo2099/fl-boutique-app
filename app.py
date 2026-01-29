@@ -16,7 +16,7 @@ styles.apply_custom_style()
 # --- LOGIN ---
 def check_password():
     """Retorna True se o usuário estiver logado corretamente."""
-    
+  
     def password_entered():
         # CORREÇÃO: Usamos .get() para evitar o KeyError se a chave não existir
         senha_digitada = st.session_state.get("password", "")
@@ -32,6 +32,7 @@ def check_password():
     if st.session_state.get("password_correct", False):
         return True
 
+
     # Se não estiver logado, mostra a tela de login
     c1, c2, c3 = st.columns([1,2,1])
     with c2:
@@ -42,6 +43,10 @@ def check_password():
             st.error("😕 Senha incorreta.")
             
     return False
+
+if not check_password():
+    st.stop()
+
 
 # --- SIDEBAR E NAVEGAÇÃO ---
 with st.sidebar:
