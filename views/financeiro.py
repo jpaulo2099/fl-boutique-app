@@ -53,7 +53,7 @@ def show_financeiro():
                     vf = f"{ut.converter_input_para_float(vl):.2f}"
                     db.append_data("Financeiro", [str(uuid.uuid4()), dt.strftime("%Y-%m-%d"), dt.strftime("%Y-%m-%d"), tp, ds, vf, "Manual", stt])
                     st.success("Lançado!")
-                    st.rerun()
+                    st.rerun() 
                     
     with t4:
         if not df.empty:

@@ -46,7 +46,7 @@ def check_password():
 
 if not check_password():
     st.stop()
-
+ 
 
 # --- SIDEBAR E NAVEGAÇÃO ---
 with st.sidebar:
