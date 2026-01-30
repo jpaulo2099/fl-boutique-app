@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from gspread.cell import Cell # <--- IMPORTANTE: NECESSÁRIO PARA O BATCH
 import os
 import time
 
@@ -39,12 +40,10 @@ def append_data(sheet_name, row_data):
             st.cache_data.clear()
         except Exception as e: st.error(f"Erro salvar: {e}")
 
-# --- NOVA FUNÇÃO DE LOTE PARA SALVAR VÁRIOS PRODUTOS DE UMA VEZ ---
 def append_data_batch(sheet_name, list_of_rows):
     conn = get_connection()
     if conn:
         try:
-            # append_rows (plural) é muito mais eficiente
             conn.worksheet(sheet_name).append_rows(list_of_rows)
             st.cache_data.clear()
             return True
@@ -91,45 +90,58 @@ def update_finance_status(fid, status):
         except: pass
     return False
 
+# --- FUNÇÃO DE LOTE CORRIGIDA (SEM LOOP DE API) ---
 def update_product_status_batch(updates_dict):
+    """
+    Recebe um dicionário { 'ID_PRODUTO': 'NOVO_STATUS' }
+    Faz apenas DUAS requisições à API: uma de leitura e uma de escrita.
+    """
     conn = get_connection()
     if conn:
         try:
             ws = conn.worksheet("Produtos")
-            all_records = ws.get_all_records()
-            id_map = {row['id']: i + 2 for i, row in enumerate(all_records)}
-            headers = ws.row_values(1)
-            try: col_status = headers.index("status") + 1
-            except: col_status = 6
             
-            for pid, novo_status in updates_dict.items():
-                if pid in id_map:
-                    ws.update_cell(id_map[pid], col_status, novo_status)
-                    time.sleep(0.1)
-            st.cache_data.clear()
-            return True
+            # 1. Requisição de Leitura (Pega todos os IDs da coluna 1)
+            # Isso é rápido e leve.
+            lista_ids = ws.col_values(1) 
+            
+            cells_to_update = []
+            
+            # 2. Monta o pacote de atualizações localmente
+            for pid, new_status in updates_dict.items():
+                if pid in lista_ids:
+                    # +1 porque lista começa em 0 e planilha em 1
+                    row_idx = lista_ids.index(pid) + 1 
+                    
+                    # Coluna 6 é o Status (A=1, B=2... F=6). 
+                    # CONFIRA SE NA SUA PLANILHA O STATUS É A COLUNA F.
+                    # Se for outra, mude o número 6 abaixo.
+                    cells_to_update.append(Cell(row_idx, 6, new_status))
+            
+            # 3. Requisição de Escrita (Envia tudo de uma vez)
+            if cells_to_update:
+                ws.update_cells(cells_to_update)
+                st.cache_data.clear()
+                return True
+            return True # Se não tinha nada pra atualizar, retorna true
+            
         except Exception as e:
-            st.error(f"Erro lote: {e}")
+            st.error(f"Erro no Batch Update: {e}")
             return False
+    return False
 
 def get_meses_fechados():
-    """Retorna uma lista de strings 'YYYY-MM' que estão fechados."""
     conn = get_connection()
     if conn:
         try:
             ws = conn.worksheet("Fechamentos")
             records = ws.get_all_records()
-            # Retorna apenas os que estão com status 'Fechado'
             return [r['mes_ano'] for r in records if r['status'] == 'Fechado']
         except:
             return []
     return []
 
 def alternar_fechamento_mes(mes_ano, acao):
-    """
-    acao: 'Fechar' ou 'Reabrir'
-    mes_ano: '2025-01'
-    """
     conn = get_connection()
     if conn:
         try:
@@ -137,11 +149,9 @@ def alternar_fechamento_mes(mes_ano, acao):
             cell = ws.find(mes_ano)
             
             if cell:
-                # Se já existe, atualiza
                 status = "Fechado" if acao == 'Fechar' else "Aberto"
                 ws.update_cell(cell.row, 2, status)
             else:
-                # Se não existe e quer fechar, cria
                 if acao == 'Fechar':
                     ws.append_row([mes_ano, "Fechado"])
             
@@ -153,16 +163,9 @@ def alternar_fechamento_mes(mes_ano, acao):
     return False
 
 def is_mes_fechado(data_verificacao):
-    """
-    Recebe datetime ou string 'YYYY-MM-DD'.
-    Retorna True se o mês estiver fechado (Bloqueado).
-    Retorna False se estiver aberto (Permitido).
-    """
     try:
-        # Garante que temos uma string YYYY-MM
         str_data = str(data_verificacao)
-        mes_ano = str_data[:7] # Pega "2025-01"
-        
+        mes_ano = str_data[:7] 
         fechados = get_meses_fechados()
         if mes_ano in fechados:
             return True
@@ -173,16 +176,11 @@ def is_mes_fechado(data_verificacao):
 # --- CONFIGURAÇÕES DO SISTEMA ---
 
 def get_configs():
-    """
-    Retorna um dicionário com as configs. 
-    Ex: {'taxa_cartao': 12.0, 'markup': 2.0}
-    """
     conn = get_connection()
     if conn:
         try:
             ws = conn.worksheet("Configuracoes")
             records = ws.get_all_records()
-            # Converte lista de dicts [{'parametro': 'x', 'valor': 1}] em dict {x: 1}
             config_dict = {}
             for r in records:
                 try:
@@ -195,16 +193,12 @@ def get_configs():
     return {}
 
 def save_configs(novos_valores):
-    """
-    Recebe dict {'taxa_cartao': 10} e salva na planilha.
-    Por segurança, apaga tudo e reescreve para manter a ordem.
-    """
     conn = get_connection()
     if conn:
         try:
             ws = conn.worksheet("Configuracoes")
             ws.clear()
-            ws.append_row(["parametro", "valor"]) # Cabeçalho
+            ws.append_row(["parametro", "valor"]) 
             
             rows = []
             for k, v in novos_valores.items():
@@ -218,14 +212,7 @@ def save_configs(novos_valores):
             return False
     return False
 
-
-
 def confirmar_recebimento(id_registro, valor_final):
-    """
-    Busca o registro pelo ID e atualiza:
-    - Valor -> para o valor_final informado (pode ser diferente do original)
-    - Status -> para 'Pago'
-    """
     conn = get_connection()
     if conn:
         try:
@@ -234,12 +221,7 @@ def confirmar_recebimento(id_registro, valor_final):
             
             if cell:
                 # Atualiza Coluna 6 (Valor) e Coluna 8 (Status)
-                # Nota: Verifique se na sua planilha 'Valor' é a coluna F (6) e 'Status' é a H (8)
-                # Se a ordem for diferente, ajuste os índices abaixo (cell.row, numero_coluna)
-                
-                # Atualiza Valor
                 ws.update_cell(cell.row, 6, valor_final)
-                # Atualiza Status
                 ws.update_cell(cell.row, 8, "Pago")
                 
                 st.cache_data.clear()
