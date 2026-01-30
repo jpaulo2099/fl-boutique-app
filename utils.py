@@ -32,40 +32,74 @@ def format_data_br(data_iso):
     except:
         return data_iso
 
-# ATUALIZADO PARA ACEITAR TIPO (VENDA OU DESPESA)
-def gerar_lancamentos(total, parcelas, forma, entidade, origem_texto, data_base=None, datas_customizadas=None, tipo="Venda"):
-    lancs = []
-    hoje = data_base if data_base else datetime.now()
-    val_parc = round(total/parcelas, 2)
-    dif = round(total - (val_parc * parcelas), 2)
+def gerar_lancamentos(total, parcelas, forma, cli, origem_texto, data_base, datas_customizadas=None, tipo="Receita"):
+    """
+    Gera uma lista de lançamentos financeiros (parcelas).
+    Lógica de Status Inteligente:
+    - Dinheiro/Débito: Sempre 'Pago'.
+    - Pix: 'Pago' se for hoje, 'Pendente' se for futuro.
+    - Cartão/Boleto: Sempre 'Pendente'.
+    """
+    lancs = []  # <--- Mantido como 'lancs' conforme seu padrão
     
-    # Se for Despesa à vista (Dinheiro/Pix), status é Pago. Se for parcelado ou cartão, depende.
-    # Regra simples: Se parcelas = 1 e (Pix ou Dinheiro), Pago. Senão Pendente.
-    status_padrao = "Pago" if (forma in ["Dinheiro", "Pix"] and parcelas == 1) else "Pendente"
+    # Garante que total é float
+    if isinstance(total, str):
+        total = converter_input_para_float(total)
+        
+    valor_parcela = total / parcelas
+    
+    # Data de hoje para comparação (apenas a data, sem horas)
+    hoje = datetime.now().date()
     
     for i in range(parcelas):
-        if datas_customizadas and len(datas_customizadas) > i:
-            venc = datas_customizadas[i]
+        # 1. Definir Data de Vencimento
+        if datas_customizadas and i < len(datas_customizadas):
+            # Se vier do Date Input do Streamlit, já é objeto date
+            data_venc = datas_customizadas[i]
         else:
-            if parcelas == 1: venc = hoje
-            else: venc = hoje + timedelta(days=30*(i+1))
+            # Cálculo simples: 30 dias a mais por parcela
+            # Garante que data_base seja convertida corretamente
+            if isinstance(data_base, str):
+                d_base = datetime.strptime(data_base, "%Y-%m-%d").date()
+            elif isinstance(data_base, datetime):
+                d_base = data_base.date()
+            else:
+                d_base = data_base
+                
+            data_venc = d_base + timedelta(days=30 * i)
             
-        val = val_parc + dif if i == parcelas-1 else val_parc
-        val_str = f"{val:.2f}"
+        # 2. Definir Status Inteligente
+        status = "Pendente" # Começa como pendente por segurança
         
-        # Descrição muda se for Venda (Cliente) ou Compra (Fornecedor)
-        desc = f"{origem_texto} - {entidade} ({i+1}/{parcelas})"
+        if forma == "Pix":
+            # Se a data de vencimento for hoje ou já passou, considera Pago.
+            # Se for futura (ex: Pix agendado para mês que vem), entra como Pendente.
+            if data_venc <= hoje:
+                status = "Pago"
+            else:
+                status = "Pendente"
         
+        elif forma in ["Dinheiro", "Débito"]:
+            # Dinheiro e Débito presencial são sempre liquidez imediata
+            status = "Pago"
+            
+        # Cartão de Crédito (30 dias pra cair) e Boleto ficam Pendentes
+        else:
+            status = "Pendente"
+            
+        # 3. Criar registro
+        # [id, data_lanc, data_venc, tipo, descricao, valor, forma, status]
         lancs.append([
             str(uuid.uuid4()),
-            hoje.strftime("%Y-%m-%d"),
-            venc.strftime("%Y-%m-%d"),
-            tipo, # Venda ou Despesa
-            desc,
-            val_str,
+            datetime.now().strftime("%Y-%m-%d"), # Data Lançamento (Hoje)
+            data_venc.strftime("%Y-%m-%d"),      # Data Vencimento
+            tipo,
+            f"{origem_texto} - {cli} ({i+1}/{parcelas})",
+            f"{valor_parcela:.2f}",
             forma,
-            status_padrao
+            status
         ])
+        
     return lancs
 
 def calcular_preco_sugerido(custo_produto):
